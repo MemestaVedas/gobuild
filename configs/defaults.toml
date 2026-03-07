@@ -1,0 +1,36 @@
+[server]
+  ws_port  = 7712
+  udp_port = 7713
+  hostname = ""  # auto-detect if empty
+
+[ui]
+  theme         = "aurora-pastel"
+  log_max_lines = 500
+  history_max   = 50
+
+[notifications]
+  desktop = true
+  sound   = true
+
+[editor]
+  # Leave empty to use $EDITOR env var
+  command = ""
+  # Examples: "nvim", "code --goto", "hx"
+
+[plugins.slack-notify]
+  enabled     = false
+  webhook_url = ""
+  notify_on   = ["build_end", "build_error"]
+
+[plugins.discord-notify]
+  enabled     = false
+  webhook_url = ""
+  notify_on   = ["build_end", "build_error"]
+
+[plugins.git-detect]
+  enabled = true
+
+[plugins.sound-alert]
+  enabled       = true
+  sound_success = "chime"
+  sound_failure = "alert"
