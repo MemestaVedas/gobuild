@@ -9,7 +9,7 @@ const (
 	MsgBuildStart  MessageType = "build_start"
 	MsgBuildEnd    MessageType = "finished"
 	MsgBuildFailed MessageType = "failed"
-	MsgStatsUpdate MessageType = "stats_update"
+	MsgStatsUpdate MessageType = "stats"
 	MsgRunBuild    MessageType = "run_build"
 	MsgKillBuild   MessageType = "kill_build"
 	MsgPing        MessageType = "ping"

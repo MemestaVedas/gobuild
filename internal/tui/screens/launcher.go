@@ -1,8 +1,12 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
+	"time"
 
+	"github.com/MemestaVedas/gobuild/internal/builder"
+	"github.com/MemestaVedas/gobuild/internal/core"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -13,11 +17,15 @@ type Launcher struct {
 	height  int
 	inputs  []textinput.Model
 	focused int
+	bm      *core.BuildManager
+	bldr    *builder.Builder
 }
 
-func NewLauncher() *Launcher {
+func NewLauncher(bm *core.BuildManager, bldr *builder.Builder) *Launcher {
 	l := &Launcher{
 		inputs: make([]textinput.Model, 3),
+		bm:     bm,
+		bldr:   bldr,
 	}
 
 	for i := range l.inputs {
@@ -68,7 +76,22 @@ func (l *Launcher) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			l.inputs[l.focused].Focus()
 		case "enter":
 			if l.focused == len(l.inputs)-1 {
-				// Execute Launch logically here
+				// Execute Launch
+				dir := l.inputs[0].Value()
+				cmdStr := l.inputs[1].Value()
+				if cmdStr != "" {
+					b := &core.Build{
+						ID:        fmt.Sprintf("%d", time.Now().UnixNano()),
+						Name:      cmdStr,
+						Command:   cmdStr,
+						WorkDir:   dir,
+						Tool:      core.ToolGeneric, // Logic for auto-detecting later
+						StartTime: time.Now(),
+					}
+					l.bm.Add(b)
+					l.bldr.StartBuild(b)
+					// Maybe switch away from launcher?
+				}
 				return l, nil
 			}
 			l.inputs[l.focused].Blur()

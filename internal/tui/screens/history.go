@@ -1,8 +1,10 @@
 package screens
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/MemestaVedas/gobuild/internal/core"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -10,18 +12,12 @@ import (
 type History struct {
 	width  int
 	height int
+	bm     *core.BuildManager
 	cursor int
-	items  []string
 }
 
-func NewHistory() *History {
-	return &History{
-		items: []string{
-			"gobuild        | Cargo  | ✓ OK   | 112s | 0 Errors",
-			"frontend-app   | NPM    | ✗ FAIL | 89s  | 3 Errors",
-			"backend-api    | Make   | ✓ OK   | 34s  | 0 Errors",
-		},
-	}
+func NewHistory(bm *core.BuildManager) *History {
+	return &History{bm: bm}
 }
 
 func (h *History) Init() tea.Cmd { return nil }
@@ -32,13 +28,14 @@ func (h *History) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		h.width = msg.Width
 		h.height = msg.Height - 3
 	case tea.KeyMsg:
+		all := h.bm.All()
 		switch msg.String() {
 		case "up", "k":
 			if h.cursor > 0 {
 				h.cursor--
 			}
 		case "down", "j":
-			if h.cursor < len(h.items)-1 {
+			if h.cursor < len(all)-1 {
 				h.cursor++
 			}
 		}
@@ -58,12 +55,16 @@ func (h *History) View() string {
 	rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#6C7086")).Render(header))
 	rows = append(rows, "  "+safeRepeat("-", h.width-4))
 
-	for i, item := range h.items {
-		cursor := "  "
+	all := h.bm.All()
+	for i, b := range all {
+		item := fmt.Sprintf("%-15s | %-6s | %-6s | %4ds | %d Errors",
+			b.Name, b.Tool.String(), b.State.String(), int(b.Elapsed().Seconds()), len(b.Errors))
+
+		cursorStr := "  "
 		if i == h.cursor {
-			cursor = "▸ "
+			cursorStr = "▸ "
 		}
-		rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#CDD6F4")).Render("  "+cursor+item))
+		rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#CDD6F4")).Render("  "+cursorStr+item))
 	}
 
 	content := strings.Join(rows, "\n")

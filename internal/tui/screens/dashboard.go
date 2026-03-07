@@ -1,6 +1,10 @@
 package screens
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/MemestaVedas/gobuild/internal/core"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -9,9 +13,12 @@ type Dashboard struct {
 	width  int
 	height int
 	active int // 0: Active, 1: Flamechart, 2: Log, 3: Errors, 4: Stats
+	bm     *core.BuildManager
 }
 
-func NewDashboard() *Dashboard { return &Dashboard{} }
+func NewDashboard(bm *core.BuildManager) *Dashboard {
+	return &Dashboard{bm: bm}
+}
 
 func (d *Dashboard) Init() tea.Cmd { return nil }
 
@@ -69,13 +76,16 @@ func (d *Dashboard) View() string {
 	leftWidth := 45
 	rightWidth := d.width - leftWidth
 
+	activeCount := len(d.bm.Active())
 	// Build the panels
-	activeBuilds := d.renderBox("ACTIVE BUILDS (0)", leftWidth, d.height/2, d.active == 0)
-	errors := d.renderBox("ERROR ANALYSIS (0)", leftWidth, d.height-(d.height/2), d.active == 3)
+	activeBuildsList := d.renderActiveBuilds(leftWidth, d.height/2)
+	activeBuilds := d.renderBox(fmt.Sprintf("ACTIVE BUILDS (%d)", activeCount), leftWidth, d.height/2, d.active == 0, activeBuildsList)
 
-	flamechart := d.renderBox("FLAMECHART", rightWidth, d.height/4, d.active == 1)
-	logs := d.renderBox("LOG OUTPUT", rightWidth, d.height/2, d.active == 2)
-	stats := d.renderBox("SYSTEM STATS", rightWidth, d.height-(d.height/4)-(d.height/2), d.active == 4)
+	errors := d.renderBox("ERROR ANALYSIS (0)", leftWidth, d.height-(d.height/2), d.active == 3, "")
+
+	flamechart := d.renderBox("FLAMECHART", rightWidth, d.height/4, d.active == 1, "")
+	logs := d.renderBox("LOG OUTPUT", rightWidth, d.height/2, d.active == 2, "")
+	stats := d.renderBox("SYSTEM STATS", rightWidth, d.height-(d.height/4)-(d.height/2), d.active == 4, "")
 
 	leftCol := lipgloss.JoinVertical(lipgloss.Left, activeBuilds, errors)
 	rightCol := lipgloss.JoinVertical(lipgloss.Left, flamechart, logs, stats)
@@ -83,7 +93,7 @@ func (d *Dashboard) View() string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftCol, rightCol)
 }
 
-func (d *Dashboard) renderBox(title string, width, height int, focused bool) string {
+func (d *Dashboard) renderBox(title string, width, height int, focused bool, content string) string {
 	borderColor := lipgloss.Color("#45475A") // inactive
 	titleColor := lipgloss.Color("#6C7086")
 	titlePrefix := "╭ "
@@ -111,7 +121,26 @@ func (d *Dashboard) renderBox(title string, width, height int, focused bool) str
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		lipgloss.NewStyle().Foreground(borderColor).Render(titleRow),
-		contentStyle.Render(""))
+		contentStyle.Render(content))
+}
+
+func (d *Dashboard) renderActiveBuilds(width, height int) string {
+	active := d.bm.Active()
+	if len(active) == 0 {
+		return "\n\n   No active builds.\n   Launch one from the [Launcher] tab."
+	}
+
+	var rows []string
+	for _, b := range active {
+		progress := int(b.Progress * 10)
+		bar := lipgloss.NewStyle().Foreground(lipgloss.Color("#A6E3A1")).Render(strings.Repeat("█", progress)) +
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#313244")).Render(strings.Repeat("░", 10-progress))
+
+		status := lipgloss.NewStyle().Foreground(lipgloss.Color("#F9E2AF")).Render(b.State.String())
+		rows = append(rows, fmt.Sprintf(" %-15s %s %s", b.Name, bar, status))
+	}
+
+	return strings.Join(rows, "\n")
 }
 
 func (d *Dashboard) Focus() {}

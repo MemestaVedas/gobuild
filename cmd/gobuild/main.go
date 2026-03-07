@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 
+	"github.com/MemestaVedas/gobuild/internal/builder"
 	"github.com/MemestaVedas/gobuild/internal/config"
 	"github.com/MemestaVedas/gobuild/internal/core"
 	"github.com/MemestaVedas/gobuild/internal/ipc"
@@ -66,8 +68,22 @@ func runApp(cmd *cobra.Command, args []string) {
 	// Platform abstraction (hardcoded Windows for this environment example)
 	plat := windows.New()
 
-	// 3. IPC Server
-	ipcServer := ipc.NewServer(cfg.Server.WSPort, bm, nil, nil)
+	// 3. Builder
+	bldr := builder.New(bm)
+
+	// 4. IPC Server
+	ipcServer := ipc.NewServer(cfg.Server.WSPort, bm, func(profile string) {
+		// Android initiated build
+		// For now, if profile is empty, we might need a default or lookup
+		b := &core.Build{
+			ID:      fmt.Sprintf("%d", time.Now().UnixNano()),
+			Name:    "Android Triggered",
+			Command: "echo 'Build started from Android'", // Placeholder
+			Tool:    core.ToolGeneric,
+		}
+		bm.Add(b)
+		bldr.StartBuild(b)
+	}, nil)
 	if err := ipcServer.Start(); err != nil {
 		log.Printf("IPC Server start failed: %v", err)
 	}
@@ -76,8 +92,27 @@ func runApp(cmd *cobra.Command, args []string) {
 	broadcaster.Start()
 	defer broadcaster.Stop()
 
-	// 4. Start TUI
-	app := tui.NewAppModel()
+	// 5. Background stats polling
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			cpu, _ := plat.GetCPUPercent()
+			used, _, _ := plat.GetRAMUsage()
+			up, down, _ := plat.GetNetworkIO()
+
+			ipcServer.Broadcast(ipc.StatsUpdateMessage{
+				Type:  ipc.MsgStatsUpdate,
+				CPU:   cpu,
+				RAM:   used,
+				NetUp: up,
+				NetDn: down,
+			})
+		}
+	}()
+
+	// 6. Start TUI
+	app := tui.NewAppModel(bm, bldr)
 
 	// The tea.WithAltScreen() ensures we restore shell history afterward
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())

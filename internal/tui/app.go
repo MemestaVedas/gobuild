@@ -1,6 +1,7 @@
 package tui
 
 import (
+	// Added fmt import
 	"strings"
 	"time"
 
@@ -8,12 +9,21 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/MemestaVedas/gobuild/internal/builder"
+	"github.com/MemestaVedas/gobuild/internal/core"
 	"github.com/MemestaVedas/gobuild/internal/tui/screens"
 )
 
 // Messages used conceptually in the architecture.
 type BuildUpdateMsg struct{}
 type StatsUpdateMsg struct{}
+type TickMsg struct{}
+
+func tick() tea.Cmd {
+	return tea.Tick(time.Millisecond*250, func(t time.Time) tea.Msg {
+		return TickMsg{}
+	})
+}
 
 // AppModel is the root component of the TUI.
 type AppModel struct {
@@ -27,40 +37,48 @@ type AppModel struct {
 	tabs       TabBarModel
 	screens    []screens.Screen
 	commandBuf string // current command input when in ModeCommand
+
+	// Services
+	bm   *core.BuildManager
+	bldr *builder.Builder
 }
 
 // NewAppModel creates the root TUI model.
-func NewAppModel() *AppModel {
+func NewAppModel(bm *core.BuildManager, bldr *builder.Builder) *AppModel {
 	styles := DefaultStyles()
-	return &AppModel{
+	m := &AppModel{
 		mode:      ModeNormal,
 		activeTab: 0,
 		styles:    styles,
 		keys:      DefaultKeyMap(),
 		statusBar: NewStatusBarModel(styles),
 		tabs:      NewTabBarModel(styles),
+		bm:        bm,
+		bldr:      bldr,
 		screens: []screens.Screen{
-			screens.NewDashboard(),
-			screens.NewLauncher(),
-			screens.NewHistory(),
+			screens.NewDashboard(bm),
+			screens.NewLauncher(bm, bldr),
+			screens.NewHistory(bm),
 			screens.NewPlugins(),
 			screens.NewHelp(),
 		},
 	}
+	return m
 }
 
 func (m *AppModel) Init() tea.Cmd {
-	return tea.Batch(
-		m.screens[0].Init(),
-		m.screens[1].Init(),
-		m.screens[2].Init(),
-		m.screens[3].Init(),
-		m.screens[4].Init(),
-	)
+	var cmds []tea.Cmd
+	for _, s := range m.screens {
+		cmds = append(cmds, s.Init())
+	}
+	cmds = append(cmds, tick())
+	return tea.Batch(cmds...)
 }
 
 func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case TickMsg:
+		return m, tick()
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case tea.WindowSizeMsg:
