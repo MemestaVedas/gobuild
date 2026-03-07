@@ -104,3 +104,15 @@ func (bm *BuildManager) Count() int {
 	defer bm.mu.RUnlock()
 	return len(bm.builds)
 }
+
+// FindByPID looks for a build with the given PID.
+func (bm *BuildManager) FindByPID(pid int) (*Build, bool) {
+	bm.mu.RLock()
+	defer bm.mu.RUnlock()
+	for _, b := range bm.builds {
+		if b.PID == pid {
+			return b, true
+		}
+	}
+	return nil, false
+}

@@ -92,11 +92,12 @@ func runApp(cmd *cobra.Command, args []string) {
 	broadcaster.Start()
 	defer broadcaster.Stop()
 
-	// 5. Background stats polling
+	// 5. Background stats polling and build discovery
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
+			// Stats
 			cpu, _ := plat.GetCPUPercent()
 			used, _, _ := plat.GetRAMUsage()
 			up, down, _ := plat.GetNetworkIO()
@@ -108,6 +109,38 @@ func runApp(cmd *cobra.Command, args []string) {
 				NetUp: up,
 				NetDn: down,
 			})
+
+			// Build Discovery
+			procs, err := plat.ScanBuildProcesses()
+			if err == nil {
+				for _, p := range procs {
+					if _, ok := bm.FindByPID(p.PID); !ok {
+						// New build discovered
+						buildID := fmt.Sprintf("ext-%d-%d", p.PID, time.Now().Unix())
+						b := &core.Build{
+							ID:        buildID,
+							Name:      p.Name,
+							Command:   p.CmdLine,
+							PID:       p.PID,
+							State:     core.StateBuilding,
+							StartTime: time.Now(),
+							Tool:      core.ToolGeneric, // Could try to refine
+						}
+						bm.Add(b)
+
+						// Watch for exit
+						_ = plat.WatchProcess(p.PID, func(info core.ProcessInfo) {
+							bm.Update(buildID, func(build *core.Build) {
+								build.State = core.StateSuccess // Default for external
+								now := time.Now()
+								build.EndTime = &now
+								build.Duration = build.EndTime.Sub(build.StartTime)
+								build.Progress = 1.0
+							})
+						})
+					}
+				}
+			}
 		}
 	}()
 
