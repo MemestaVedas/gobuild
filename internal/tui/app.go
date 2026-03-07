@@ -108,6 +108,11 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StatsUpdateMsg:
 		// Re-trigger stats poll or just update status bar
 		return m, nil
+	case core.SwitchToDashboardMsg:
+		m.activeTab = 0
+		m.tabs.SetActive(0)
+		m.mode = ModeNormal
+		return m, nil
 	}
 
 	// Always forward uncaught messages to the active screen

@@ -33,6 +33,7 @@ func NewLauncher(bm *core.BuildManager, bldr *builder.Builder) *Launcher {
 		t.Cursor.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#A6E3A1"))
 		t.PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#89B4FA"))
 		t.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#CDD6F4"))
+		t.ShowSuggestions = true
 		switch i {
 		case 0:
 			t.Prompt = "  Directory:  "
@@ -63,14 +64,14 @@ func (l *Launcher) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		l.height = msg.Height - 3
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "up", "shift+tab": // We use shift+tab natively across inputs
+		case "up":
 			l.inputs[l.focused].Blur()
 			l.focused--
 			if l.focused < 0 {
 				l.focused = len(l.inputs) - 1
 			}
 			l.inputs[l.focused].Focus()
-		case "down", "tab":
+		case "down":
 			l.inputs[l.focused].Blur()
 			l.focused = (l.focused + 1) % len(l.inputs)
 			l.inputs[l.focused].Focus()
@@ -90,7 +91,10 @@ func (l *Launcher) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					l.bm.Add(b)
 					l.bldr.StartBuild(b)
-					// Maybe switch away from launcher?
+					// Switch away from launcher
+					return l, func() tea.Msg {
+						return core.SwitchToDashboardMsg{} // We need to import core or return the app's msg
+					}
 				}
 				return l, nil
 			}

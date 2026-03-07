@@ -14,6 +14,9 @@ const (
 	StateCancelled
 )
 
+// Global messages
+type SwitchToDashboardMsg struct{}
+
 func (s BuildState) String() string {
 	switch s {
 	case StateIdle:
