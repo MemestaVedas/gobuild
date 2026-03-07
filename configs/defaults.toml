@@ -1,6 +1,6 @@
 [server]
-  ws_port  = 7712
-  udp_port = 7713
+  ws_port  = 8765
+  udp_port = 8766
   hostname = ""  # auto-detect if empty
 
 [ui]

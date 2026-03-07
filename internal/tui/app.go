@@ -66,6 +66,23 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+
+		// The workspace height = total - top(1) - tabs(1) - sep1(1) - sep2(1) - status(1) - sep3(1) - hints(1) - bot(1)
+		wsHeight := m.height - 8
+		if wsHeight < 0 {
+			wsHeight = 0
+		}
+		wsWidth := m.width - 2
+		if wsWidth < 0 {
+			wsWidth = 0
+		}
+
+		// Broadcast the correctly reduced inner size to all child screens
+		screenMsg := tea.WindowSizeMsg{Width: wsWidth, Height: wsHeight}
+		for i := range m.screens {
+			mod, _ := m.screens[i].Update(screenMsg)
+			m.screens[i] = mod.(screens.Screen)
+		}
 		return m, nil
 	case BuildUpdateMsg:
 		// Send to current screen if interested
@@ -91,6 +108,7 @@ func (m *AppModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.commandBuf = ""
 		// The active screen might need to clear selection in Normal too, so dispatch it.
 		// Note: The specs specify "In Normal mode, Esc clears any active selection".
+		m.screens[m.activeTab].Blur()
 		mod, cmd := m.screens[m.activeTab].Update(msg)
 		m.screens[m.activeTab] = mod.(screens.Screen)
 		return m, cmd
@@ -151,6 +169,20 @@ func (m *AppModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Entering Insert Mode
+	if msg.String() == "i" || msg.String() == "a" || msg.String() == "enter" {
+		m.mode = ModeInsert
+		m.screens[m.activeTab].Focus()
+		// Let the screen process the key if necessary (e.g., enter to select an input)
+		// But usually we just consume it to enter the mode
+		if msg.String() == "enter" {
+			mod, cmd := m.screens[m.activeTab].Update(msg)
+			m.screens[m.activeTab] = mod.(screens.Screen)
+			return m, cmd
+		}
+		return m, nil
+	}
+
 	// Dispatch other Normal keys to the active screen
 	mod, cmd := m.screens[m.activeTab].Update(msg)
 	m.screens[m.activeTab] = mod.(screens.Screen)
@@ -171,7 +203,7 @@ func (m *AppModel) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
 		m.commandBuf += string(msg.Runes)
-	} else if msg.Type == tea.KeyBackspace || msg.Type == tea.KeyBackspace2 {
+	} else if msg.Type == tea.KeyBackspace {
 		if len(m.commandBuf) > 0 {
 			m.commandBuf = m.commandBuf[:len(m.commandBuf)-1]
 		}
@@ -189,44 +221,86 @@ func (m *AppModel) executeCommand(cmdStr string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func safeRepeat(s string, count int) string {
+	if count <= 0 {
+		return ""
+	}
+	return strings.Repeat(s, count)
+}
+
 func (m *AppModel) View() string {
-	if m.width == 0 {
+	if m.width <= 0 || m.height <= 0 {
 		return "Initializing..."
 	}
 
-	statusBar := m.statusBar.View(m.mode, m.width)
-	tabs := m.tabs.View(m.width)
-	hints := m.hintsBar()
+	innerW := m.width - 2
+	if innerW < 0 {
+		innerW = 0
+	}
+	wsHeight := m.height - 8
+	if wsHeight < 0 {
+		wsHeight = 0
+	}
 
-	// Available workspace height
-	wsHeight := m.height - lipgloss.Height(statusBar) - lipgloss.Height(tabs) - lipgloss.Height(hints)
-	_ = wsHeight // Later we pass this down to screens so they size properly
+	top := "┌" + safeRepeat("─", innerW) + "┐"
+
+	// Ensure these components render to exact width
+	tabsContent := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, m.tabs.View(innerW))
+	tabs := "│" + tabsContent + "│"
+
+	sep1 := "├" + safeRepeat("─", innerW) + "┤"
 
 	activeScreen := m.screens[m.activeTab].View()
+	workspaceLines := strings.Split(activeScreen, "\n")
 
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
+	var wsRendered []string
+	for i := 0; i < wsHeight; i++ {
+		line := ""
+		if i < len(workspaceLines) {
+			line = workspaceLines[i]
+		}
+		renderedLine := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, line)
+		wsRendered = append(wsRendered, "│"+renderedLine+"│")
+	}
+
+	sep2 := "├" + safeRepeat("─", innerW) + "┤"
+
+	statusContent := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, m.statusBar.View(m.mode, innerW))
+	status := "│" + statusContent + "│"
+
+	sep3 := "├" + safeRepeat("─", innerW) + "┤"
+
+	hintsContent := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, m.hintsBar(innerW))
+	hints := "│" + hintsContent + "│"
+
+	bot := "└" + safeRepeat("─", innerW) + "┘"
+
+	return lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(top),
 		tabs,
-		activeScreen,
-		statusBar,
+		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(sep1),
+		strings.Join(wsRendered, "\n"),
+		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(sep2),
+		status,
+		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(sep3),
 		hints,
+		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(bot),
 	)
 }
 
-func (m *AppModel) hintsBar() string {
+func (m *AppModel) hintsBar(width int) string {
+	var content string
 	if m.mode == ModeCommand {
-		return m.styles.HintsBar.Copy().Width(m.width).Render(":" + m.commandBuf + "_")
+		content = ":" + m.commandBuf + "_"
+	} else {
+		content = "  r Run   x Kill   f Focus Log   o Open Editor   / Search"
+		if m.activeTab == 1 { // Launcher
+			content = "  Tab Complete   Esc Normal Mode   Up/Down Move Field"
+		} else if m.activeTab == 2 { // History
+			content = "  Enter View Logs  o Open  r Re-run  / Search  Del Delete"
+		}
 	}
-
-	// Show context hints
-	content := "r Run   x Kill   f Focus Log   o Open Editor   / Search"
-	if m.activeTab == 1 { // Launcher
-		content = "Tab Complete   Esc Normal Mode   Ctrl+W Delete Word   Up/Down Move Field"
-	} else if m.activeTab == 2 { // History
-		content = "Enter View Logs  o Open  r Re-run  / Search  Del Delete"
-	}
-
-	return m.styles.HintsBar.Copy().Width(m.width).Render(content)
+	return m.styles.HintsBar.Copy().Width(width).Render(content)
 }
 
 // Global ticks

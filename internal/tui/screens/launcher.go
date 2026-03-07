@@ -29,7 +29,6 @@ func NewLauncher() *Launcher {
 		case 0:
 			t.Prompt = "  Directory:  "
 			t.Placeholder = "/home/user/projects/myapp"
-			t.Focus()
 		case 1:
 			t.Prompt = "  Command:    "
 			t.Placeholder = "cargo build --release"
@@ -91,14 +90,10 @@ func (l *Launcher) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (l *Launcher) View() string {
-	borderColor := lipgloss.Color("#CBA6F7")
 	titleColor := lipgloss.Color("#CBA6F7")
-	title := "╭▸ NEW BUILD "
+	title := "  NEW BUILD "
 
-	// Create border shell
-	border := lipgloss.RoundedBorder()
-	titleRow := lipgloss.NewStyle().Foreground(titleColor).Bold(true).Render(title) +
-		lipgloss.NewStyle().Foreground(borderColor).Render(strings.Repeat(border.Top, l.width-lipgloss.Width(title)-2)+"╮")
+	titleRow := lipgloss.NewStyle().Foreground(titleColor).Bold(true).Render(title)
 
 	var formRows []string
 	formRows = append(formRows, "")
@@ -120,19 +115,16 @@ func (l *Launcher) View() string {
 
 	content := strings.Join(formRows, "\n")
 	contentStyle := lipgloss.NewStyle().
-		Width(l.width - 2).
-		Height(l.height - 2).
-		Border(lipgloss.Border{
-			Left: border.Left, Right: border.Right, Bottom: border.Bottom,
-			BottomLeft: border.BottomLeft, BottomRight: border.BottomRight,
-		}).
-		BorderForeground(borderColor)
+		Width(l.width).
+		Height(l.height)
 
 	return lipgloss.JoinVertical(lipgloss.Left, titleRow, contentStyle.Render(content))
 }
 
 func (l *Launcher) Focus() {
-	l.inputs[l.focused].Focus()
+	if len(l.inputs) > 0 {
+		l.inputs[l.focused].Focus()
+	}
 }
 
 func (l *Launcher) Blur() {

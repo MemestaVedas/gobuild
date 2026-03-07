@@ -28,12 +28,10 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (h *Help) View() string {
-	borderColor := lipgloss.Color("#CBA6F7")
-	title := "╭▸ HELP & KEYBINDINGS "
+	titleColor := lipgloss.Color("#CBA6F7")
+	title := "  HELP & KEYBINDINGS "
 
-	border := lipgloss.RoundedBorder()
-	titleRow := lipgloss.NewStyle().Foreground(borderColor).Bold(true).Render(title) +
-		lipgloss.NewStyle().Foreground(borderColor).Render(strings.Repeat(border.Top, h.width-lipgloss.Width(title)-2)+"╮")
+	titleRow := lipgloss.NewStyle().Foreground(titleColor).Bold(true).Render(title)
 
 	contentRows := []string{
 		"Global Navigation (Normal Mode):",
@@ -55,13 +53,8 @@ func (h *Help) View() string {
 	content := lipgloss.NewStyle().Padding(1, 4).Foreground(lipgloss.Color("#CDD6F4")).Render(strings.Join(contentRows, "\n"))
 
 	contentStyle := lipgloss.NewStyle().
-		Width(h.width - 2).
-		Height(h.height - 2).
-		Border(lipgloss.Border{
-			Left: border.Left, Right: border.Right, Bottom: border.Bottom,
-			BottomLeft: border.BottomLeft, BottomRight: border.BottomRight,
-		}).
-		BorderForeground(borderColor)
+		Width(h.width).
+		Height(h.height)
 
 	return lipgloss.JoinVertical(lipgloss.Left, titleRow, contentStyle.Render(content))
 }

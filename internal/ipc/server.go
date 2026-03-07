@@ -112,12 +112,12 @@ func (s *Server) sendHello(conn *websocket.Conn) {
 
 	for i, b := range active {
 		hello.Builds[i] = &HelloBuild{
-			ID:       b.ID,
-			Name:     b.Name,
-			Tool:     b.Tool.String(),
-			State:    b.State.String(),
-			Progress: b.Progress,
-			ElapsedS: b.Elapsed().Seconds(),
+			Project:         b.Name,
+			Tool:            b.Tool.String(),
+			Status:          b.State.String(),
+			Progress:        b.Progress,
+			PID:             0, // We'll add real PID support later in core
+			DurationSeconds: int(b.Elapsed().Seconds()),
 		}
 	}
 

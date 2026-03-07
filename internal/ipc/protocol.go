@@ -1,15 +1,14 @@
 package ipc
 
-import "github.com/MemestaVedas/gobuild/internal/core"
-
 // MessageType defines the kinds of messages sent over WebSocket.
 type MessageType string
 
 const (
 	MsgHello       MessageType = "hello"
-	MsgBuildUpdate MessageType = "build_update"
+	MsgBuildUpdate MessageType = "update"
 	MsgBuildStart  MessageType = "build_start"
-	MsgBuildEnd    MessageType = "build_end"
+	MsgBuildEnd    MessageType = "finished"
+	MsgBuildFailed MessageType = "failed"
 	MsgStatsUpdate MessageType = "stats_update"
 	MsgRunBuild    MessageType = "run_build"
 	MsgKillBuild   MessageType = "kill_build"
@@ -31,32 +30,29 @@ type BeaconMessage struct {
 	Name    string `json:"name"`
 }
 
-// HelloMessage provides full state on initial connect.
+// HelloMessage is actually a full update in Android's eyes
 type HelloMessage struct {
 	Type   MessageType   `json:"type"`
 	Builds []*HelloBuild `json:"builds"`
+	CPU    float64       `json:"cpu"`
 }
 
 type HelloBuild struct {
-	ID       string  `json:"id"`
-	Name     string  `json:"name"`
-	Tool     string  `json:"tool"`
-	State    string  `json:"state"`
-	Progress float64 `json:"progress"`
-	ElapsedS float64 `json:"elapsed_s"`
+	Project         string  `json:"project"`
+	Tool            string  `json:"tool"`
+	Status          string  `json:"status"`
+	Progress        float64 `json:"progress"`
+	PID             int     `json:"pid"`
+	DurationSeconds int     `json:"duration_seconds"`
 }
 
-// BuildUpdateMessage is sent periodically for active builds.
+// BuildUpdateMessage matches Android's "update" type
 type BuildUpdateMessage struct {
-	Type     MessageType       `json:"type"`
-	ID       string            `json:"id"`
-	Name     string            `json:"name"`
-	Tool     string            `json:"tool"`
-	State    string            `json:"state"`
-	Progress float64           `json:"progress"`
-	ElapsedS float64           `json:"elapsed_s"`
-	LogTail  []string          `json:"log_tail"`
-	Errors   []core.BuildError `json:"errors"`
+	Type        MessageType   `json:"type"`
+	Builds      []*HelloBuild `json:"builds"`
+	CPU         float64       `json:"cpu"`
+	Timestamp   int64         `json:"timestamp"`
+	ActiveCount int           `json:"active_count"`
 }
 
 // BuildStartMessage notifies clients a build began.
@@ -67,15 +63,14 @@ type BuildStartMessage struct {
 	Tool string      `json:"tool"`
 }
 
-// BuildEndMessage notifies clients a build finished.
+// BuildEndMessage notifies clients a build finished/failed.
 type BuildEndMessage struct {
-	Type         MessageType `json:"type"`
-	ID           string      `json:"id"`
-	Name         string      `json:"name"`
-	State        string      `json:"state"` // success or failed
-	DurationS    float64     `json:"duration_s"`
-	ErrorCount   int         `json:"error_count"`
-	WarningCount int         `json:"warning_count"`
+	Type            MessageType `json:"type"`
+	Project         string      `json:"project"`
+	Tool            string      `json:"tool"`
+	DurationSeconds int         `json:"duration_seconds"`
+	Success         bool        `json:"success"`
+	ErrorLine       string      `json:"error_line"`
 }
 
 // StatsUpdateMessage provides current PC resource utilisation.

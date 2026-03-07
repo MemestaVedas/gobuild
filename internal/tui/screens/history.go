@@ -47,35 +47,29 @@ func (h *History) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (h *History) View() string {
-	borderColor := lipgloss.Color("#CBA6F7")
-	title := "╭▸ BUILD HISTORY (Last 50) "
+	titleColor := lipgloss.Color("#CBA6F7")
+	title := "  BUILD HISTORY (Last 50) "
 
-	border := lipgloss.RoundedBorder()
-	titleRow := lipgloss.NewStyle().Foreground(borderColor).Bold(true).Render(title) +
-		lipgloss.NewStyle().Foreground(borderColor).Render(strings.Repeat(border.Top, h.width-lipgloss.Width(title)-2)+"╮")
+	titleRow := lipgloss.NewStyle().Foreground(titleColor).Bold(true).Render(title)
 
 	header := "  Project        | Tool   | Status | Time | Errors"
 	var rows []string
+	rows = append(rows, "")
 	rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#6C7086")).Render(header))
-	rows = append(rows, strings.Repeat("-", h.width-4))
+	rows = append(rows, "  "+safeRepeat("-", h.width-4))
 
 	for i, item := range h.items {
 		cursor := "  "
 		if i == h.cursor {
 			cursor = "▸ "
 		}
-		rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#CDD6F4")).Render(cursor+item))
+		rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#CDD6F4")).Render("  "+cursor+item))
 	}
 
 	content := strings.Join(rows, "\n")
 	contentStyle := lipgloss.NewStyle().
-		Width(h.width - 2).
-		Height(h.height - 2).
-		Border(lipgloss.Border{
-			Left: border.Left, Right: border.Right, Bottom: border.Bottom,
-			BottomLeft: border.BottomLeft, BottomRight: border.BottomRight,
-		}).
-		BorderForeground(borderColor)
+		Width(h.width).
+		Height(h.height)
 
 	return lipgloss.JoinVertical(lipgloss.Left, titleRow, contentStyle.Render(content))
 }

@@ -85,7 +85,7 @@ func DefaultStyles() Styles {
 	s.StatusMode = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#11111B")).
 		Bold(true).
-		PaddingOuter(1)
+		Padding(0, 1)
 
 	s.StatusConnected = lipgloss.NewStyle().
 		Foreground(s.ColorSuccess)

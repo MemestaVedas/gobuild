@@ -1,7 +1,6 @@
 package ipc
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -51,17 +50,9 @@ func (b *Broadcaster) Start() {
 			select {
 			case <-ticker.C:
 				ip := getLocalIP()
-				msg := BeaconMessage{
-					Type:    "beacon",
-					Host:    ip,
-					Port:    b.wsPort,
-					Version: "1.0",
-					Name:    b.deviceName,
-				}
-				data, err := json.Marshal(msg)
-				if err == nil {
-					_, _ = conn.Write(data)
-				}
+				// Android expects "BUILDM-ON_DISCOVERY:$IP"
+				msg := fmt.Sprintf("BUILDM-ON_DISCOVERY:%s", ip)
+				_, _ = conn.Write([]byte(msg))
 			case <-b.stop:
 				return
 			}

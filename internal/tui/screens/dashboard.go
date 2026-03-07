@@ -1,8 +1,6 @@
 package screens
 
 import (
-	"strings"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -100,7 +98,7 @@ func (d *Dashboard) renderBox(title string, width, height int, focused bool) str
 
 	// Create Custom border with embedded title
 	border := lipgloss.RoundedBorder()
-	titleRow := titlePrefix + t + " " + strings.Repeat(border.Top, width-lipgloss.Width(title)-4) + "╮"
+	titleRow := titlePrefix + t + " " + safeRepeat(border.Top, width-lipgloss.Width(title)-4) + "╮"
 
 	contentStyle := lipgloss.NewStyle().
 		Width(width - 2).
