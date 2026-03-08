@@ -16,6 +16,9 @@ type StatusBarModel struct {
 	ramUsedBytes uint64
 	netUp        uint64
 	netDn        uint64
+	activeTab    int
+	totalErrors  int
+	totalWarns   int
 }
 
 // NewStatusBarModel creates a status bar model.
@@ -40,49 +43,75 @@ func (s *StatusBarModel) UpdateStats(cpuPct float64, ramBytes, netUp, netDn uint
 	s.netDn = netDn
 }
 
+func (s *StatusBarModel) SetErrors(errs, warns int) {
+	s.totalErrors = errs
+	s.totalWarns = warns
+}
+
+func (s *StatusBarModel) SetActiveTab(tab int) {
+	s.activeTab = tab
+}
+
+const (
+	separator = ""
+	branch    = ""
+)
+
 // View renders the bottom statusline with dynamic mode colouring.
 func (s *StatusBarModel) View(mode Mode, width int) string {
-	var bg lipgloss.Color
+	var modeColor lipgloss.Color
+	var modeText string
 	switch mode {
 	case ModeInsert:
-		bg = s.styles.ColorInsert
+		modeColor = s.styles.ColorInsert
+		modeText = " INSERT "
 	case ModeCommand:
-		bg = s.styles.ColorCommand
+		modeColor = s.styles.ColorCommand
+		modeText = " COMMAND "
 	default:
-		bg = s.styles.ColorNormal
+		modeColor = s.styles.ColorNormal
+		modeText = " NORMAL "
 	}
 
-	appPill := s.styles.StatusMode.Copy().
-		Background(bg).
-		Render(fmt.Sprintf("%s %s", s.appName, s.version))
+	// 1. Mode segment (Inverse)
+	modeStyle := s.styles.StatusMode.Copy().Background(modeColor)
+	modeSeg := modeStyle.Render(modeText)
 
-	modePill := s.styles.StatusMode.Copy().
-		Background(bg).
-		Render(mode.String())
-
-	connStr := "○ Offline"
-	if s.isConnected {
-		connStr = "● Connected"
+	// 2. Project/Tab name segment
+	tabNames := []string{" Dashboard ", " Launcher ", " History ", " Plugins ", " Help "}
+	tabName := " GoBuild "
+	if s.activeTab >= 0 && s.activeTab < len(tabNames) {
+		tabName = tabNames[s.activeTab]
 	}
-	connPill := s.styles.StatusConnected.Copy().
-		Foreground(s.styles.ColorSuccess).
-		Render(connStr)
+	projSeg := s.styles.StatusSegment1.Render(tabName)
 
-	statsStr := fmt.Sprintf("│ CPU %.0f%% │ RAM %.1fG │ ↑%d ↓%dKB",
-		s.cpuPct,
-		float64(s.ramUsedBytes)/1024/1024/1024,
-		s.netUp/1024, s.netDn/1024)
+	// 3. Middle spacers / icons
+	branchSeg := s.styles.StatusSegment2.Render(fmt.Sprintf("%s master", branch))
 
-	statsPill := s.styles.StatusStats.Render(statsStr)
-
-	left := lipgloss.JoinHorizontal(lipgloss.Center, appPill, " │ ", modePill, " │ ", connPill)
-
-	// Simple placement — space between if there's enough room
-	w := width - lipgloss.Width(left) - lipgloss.Width(statsPill)
-	if w < 0 {
-		w = 0 // truncate gracefully
+	// 4. Stats / Errors (Right side)
+	errIcon := ""
+	if s.totalErrors > 0 {
+		errIcon = s.styles.StatusError.Render(fmt.Sprintf("  %d", s.totalErrors))
 	}
-	space := s.styles.HintsBar.Copy().Width(w).Render("")
+	warnIcon := ""
+	if s.totalWarns > 0 {
+		warnIcon = s.styles.StatusWarning.Render(fmt.Sprintf("  %d", s.totalWarns))
+	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Center, left, space, statsPill)
+	statsText := fmt.Sprintf("  %.0f%%  %.1fG ", s.cpuPct, float64(s.ramUsedBytes)/1024/1024/1024)
+	statsSeg := s.styles.StatusSegment3.Render(statsText)
+
+	lspSeg := s.styles.StatusSegment2.Render(" build-on")
+
+	left := lipgloss.JoinHorizontal(lipgloss.Top, modeSeg, projSeg, branchSeg)
+	right := lipgloss.JoinHorizontal(lipgloss.Top, errIcon, warnIcon, statsSeg, lspSeg)
+
+	// Join with space
+	availableSpace := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if availableSpace < 0 {
+		availableSpace = 0
+	}
+	middleSpace := s.styles.StatusSegment2.Copy().Width(availableSpace).Render("")
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, middleSpace, right)
 }

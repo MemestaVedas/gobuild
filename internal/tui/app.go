@@ -121,6 +121,21 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var mod tea.Model
 	mod, cmd = m.screens[m.activeTab].Update(msg)
 	m.screens[m.activeTab] = mod.(screens.Screen)
+
+	// Sync status bar
+	m.statusBar.SetActiveTab(m.activeTab)
+	totalErrs, totalWarns := 0, 0
+	for _, b := range m.bm.All() {
+		for _, e := range b.Errors {
+			if e.Level == core.LogError {
+				totalErrs++
+			} else {
+				totalWarns++
+			}
+		}
+	}
+	m.statusBar.SetErrors(totalErrs, totalWarns)
+
 	return m, cmd
 }
 
@@ -291,11 +306,6 @@ func (m *AppModel) View() string {
 	statusContent := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, m.statusBar.View(m.mode, innerW))
 	status := "│" + statusContent + "│"
 
-	sep3 := "├" + safeRepeat("─", innerW) + "┤"
-
-	hintsContent := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, m.hintsBar(innerW))
-	hints := "│" + hintsContent + "│"
-
 	bot := "└" + safeRepeat("─", innerW) + "┘"
 
 	return lipgloss.JoinVertical(lipgloss.Left,
@@ -305,8 +315,6 @@ func (m *AppModel) View() string {
 		strings.Join(wsRendered, "\n"),
 		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(sep2),
 		status,
-		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(sep3),
-		hints,
 		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(bot),
 	)
 }

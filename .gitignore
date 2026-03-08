@@ -1,1 +1,14 @@
 gobuild.md
+
+# Binaries
+gobuild.exe
+*.exe
+*.test
+bin/
+
+# Logs
+*.log
+gobuild.log
+
+# Testing
+test_*.go

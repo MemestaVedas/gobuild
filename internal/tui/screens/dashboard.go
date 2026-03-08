@@ -37,15 +37,15 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if d.active < 0 {
 				d.active = 4
 			}
-		case "ctrl+h": // left
+		case "ctrl+h", "h": // left
 			if d.active == 1 || d.active == 2 || d.active == 4 {
 				d.active = 0
 			}
-		case "ctrl+l": // right
+		case "ctrl+l", "l": // right
 			if d.active == 0 || d.active == 3 {
 				d.active = 2
 			}
-		case "ctrl+k": // up
+		case "ctrl+k", "k": // up
 			switch d.active {
 			case 3:
 				d.active = 0
@@ -54,7 +54,7 @@ func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case 4:
 				d.active = 2
 			}
-		case "ctrl+j": // down
+		case "ctrl+j", "j": // down
 			switch d.active {
 			case 0:
 				d.active = 3
@@ -127,17 +127,29 @@ func (d *Dashboard) renderBox(title string, width, height int, focused bool, con
 func (d *Dashboard) renderActiveBuilds(width, height int) string {
 	active := d.bm.Active()
 	if len(active) == 0 {
-		return "\n\n   No active builds.\n   Launch one from the [Launcher] tab."
+		return "\n\n   No active builds found.\n   Start a command or wait\n   for auto-discovery."
 	}
 
 	var rows []string
 	for _, b := range active {
 		progress := int(b.Progress * 10)
-		bar := lipgloss.NewStyle().Foreground(lipgloss.Color("#A6E3A1")).Render(strings.Repeat("█", progress)) +
+		barColor := "#A6E3A1" // green
+		if b.State == core.StateFailed {
+			barColor = "#F38BA8" // red
+		}
+
+		bar := lipgloss.NewStyle().Foreground(lipgloss.Color(barColor)).Render(strings.Repeat("█", progress)) +
 			lipgloss.NewStyle().Foreground(lipgloss.Color("#313244")).Render(strings.Repeat("░", 10-progress))
 
-		status := lipgloss.NewStyle().Foreground(lipgloss.Color("#F9E2AF")).Render(b.State.String())
-		rows = append(rows, fmt.Sprintf(" %-15s %s %s", b.Name, bar, status))
+		icon := "" // clock
+		if b.State == core.StateBuilding {
+			icon = "󱓞" // building
+		} else if b.State == core.StateSuccess {
+			icon = "check"
+		}
+
+		status := lipgloss.NewStyle().Foreground(lipgloss.Color("#6C7086")).Render(b.State.String())
+		rows = append(rows, fmt.Sprintf(" %s %-18s %s %s", icon, b.Name, bar, status))
 	}
 
 	return strings.Join(rows, "\n")
