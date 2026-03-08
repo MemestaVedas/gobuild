@@ -55,8 +55,8 @@ func (b *Broadcaster) Start() {
 			case <-ticker.C:
 				// Re-verify IP in case network changed (e.g. laptop move)
 				currentIP := getLocalIP()
-				// Android expects "BUILDM-ON_DISCOVERY:$IP"
-				msg := fmt.Sprintf("BUILDM-ON_DISCOVERY:%s", currentIP)
+				// Android expects "GOBUILD_DISCOVERY:$IP"
+				msg := fmt.Sprintf("GOBUILD_DISCOVERY:%s", currentIP)
 				_, _ = conn.Write([]byte(msg))
 			case <-b.stop:
 				return
