@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -46,12 +47,16 @@ func (b *Broadcaster) Start() {
 		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 
+		ip := getLocalIP()
+		log.Printf("Broadcasting discovery beacon on %s:%d (deviceName: %s)", ip, b.port, b.deviceName)
+
 		for {
 			select {
 			case <-ticker.C:
-				ip := getLocalIP()
+				// Re-verify IP in case network changed (e.g. laptop move)
+				currentIP := getLocalIP()
 				// Android expects "BUILDM-ON_DISCOVERY:$IP"
-				msg := fmt.Sprintf("BUILDM-ON_DISCOVERY:%s", ip)
+				msg := fmt.Sprintf("BUILDM-ON_DISCOVERY:%s", currentIP)
 				_, _ = conn.Write([]byte(msg))
 			case <-b.stop:
 				return
@@ -65,18 +70,52 @@ func (b *Broadcaster) Stop() {
 	close(b.stop)
 }
 
-// getLocalIP attempts to find the primary non-loopback IP address.
+// getLocalIP attempts to find the primary non-loopback IP address,
+// prioritizing common local network subnets to avoid virtual bridges (WSL/Docker).
 func getLocalIP() string {
-	addrs, err := net.InterfaceAddrs()
+	ifaces, err := net.Interfaces()
 	if err != nil {
 		return "127.0.0.1"
 	}
-	for _, a := range addrs {
-		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				return ipnet.IP.String()
-			}
+
+	var candidates []string
+
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
 		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+
+			if ip == nil || ip.IsLoopback() {
+				continue
+			}
+			ip = ip.To4()
+			if ip == nil {
+				continue
+			}
+
+			ipStr := ip.String()
+			// Prioritize common LAN subnets
+			if strings.HasPrefix(ipStr, "192.168.") || strings.HasPrefix(ipStr, "10.") || strings.HasPrefix(ipStr, "172.16.") {
+				return ipStr
+			}
+			candidates = append(candidates, ipStr)
+		}
+	}
+
+	if len(candidates) > 0 {
+		return candidates[0]
 	}
 	return "127.0.0.1"
 }

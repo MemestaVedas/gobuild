@@ -84,6 +84,7 @@ func runApp(cmd *cobra.Command, args []string) {
 		bm.Add(b)
 		bldr.StartBuild(b)
 	}, nil)
+	log.Printf("IPC WebSocket server listening on 0.0.0.0:%d", cfg.Server.WSPort)
 	if err := ipcServer.Start(); err != nil {
 		log.Printf("IPC Server start failed: %v", err)
 	}
@@ -99,15 +100,29 @@ func runApp(cmd *cobra.Command, args []string) {
 		for range ticker.C {
 			// Stats
 			cpu, _ := plat.GetCPUPercent()
-			used, _, _ := plat.GetRAMUsage()
-			up, down, _ := plat.GetNetworkIO()
+			_, _, _ = plat.GetRAMUsage()
+			_, _, _ = plat.GetNetworkIO()
 
-			ipcServer.Broadcast(ipc.StatsUpdateMessage{
-				Type:  ipc.MsgStatsUpdate,
-				CPU:   cpu,
-				RAM:   used,
-				NetUp: up,
-				NetDn: down,
+			// Android expects a unified "update" message with builds list
+			activeBuilds := bm.Active()
+			builds := make([]*ipc.HelloBuild, len(activeBuilds))
+			for i, b := range activeBuilds {
+				builds[i] = &ipc.HelloBuild{
+					Project:         b.Name,
+					Tool:            b.Tool.String(),
+					Status:          b.State.String(),
+					Progress:        b.Progress,
+					PID:             b.PID,
+					DurationSeconds: int(b.Elapsed().Seconds()),
+				}
+			}
+
+			ipcServer.Broadcast(ipc.BuildUpdateMessage{
+				Type:        ipc.MsgBuildUpdate,
+				CPU:         cpu,
+				Builds:      builds,
+				ActiveCount: len(builds),
+				Timestamp:   time.Now().Unix(),
 			})
 
 			// Build Discovery
