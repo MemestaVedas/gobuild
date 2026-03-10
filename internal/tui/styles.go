@@ -1,33 +1,37 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 // Styles defines the application-wide color palette and UI elements.
 type Styles struct {
 	// ── Colors ───────────────────────────────────────────────────────────
-	ColorNormal  lipgloss.Color
-	ColorInsert  lipgloss.Color
-	ColorCommand lipgloss.Color
+	ColorNormal  color.Color
+	ColorInsert  color.Color
+	ColorCommand color.Color
 
-	ColorSuccess lipgloss.Color
-	ColorWarning lipgloss.Color
-	ColorFailed  lipgloss.Color
-	ColorRunning lipgloss.Color
-	ColorQueued  lipgloss.Color
+	ColorSuccess color.Color
+	ColorWarning color.Color
+	ColorFailed  color.Color
+	ColorRunning color.Color
+	ColorQueued  color.Color
 
-	ColorText      lipgloss.Color
-	ColorSubtext   lipgloss.Color
-	ColorFaint     lipgloss.Color
-	ColorHighlight lipgloss.Color
-	ColorSurface   lipgloss.Color
-	ColorBase      lipgloss.Color
-	ColorCrust     lipgloss.Color
+	ColorText      color.Color
+	ColorSubtext   color.Color
+	ColorFaint     color.Color
+	ColorHighlight color.Color
+	ColorSurface   color.Color
+	ColorBase      color.Color
+	ColorCrust     color.Color
 
-	ColorBorderActive   lipgloss.Color
-	ColorBorderInactive lipgloss.Color
-	ColorBorderDim      lipgloss.Color
+	ColorBorderActive   color.Color
+	ColorBorderInactive color.Color
+	ColorBorderDim      color.Color
 
-	ColorAccent lipgloss.Color // Primary green accent (lazygit-style)
+	ColorAccent color.Color // Primary green accent (lazygit-style)
 
 	// ── Panels ───────────────────────────────────────────────────────────
 	PanelActive   lipgloss.Style
@@ -90,19 +94,24 @@ func DefaultStyles() Styles {
 		ColorBorderDim:      lipgloss.Color("#313244"),
 	}
 
-	border := lipgloss.NormalBorder()
+	border := lipgloss.RoundedBorder()
 	basePanel := lipgloss.NewStyle().Border(border).Padding(0, 1)
 
-	s.PanelActive = basePanel.Copy().BorderForeground(s.ColorBorderActive)
+	s.PanelActive = basePanel.Copy().
+        BorderForegroundBlend(s.ColorAccent, lipgloss.Color("#89B4FA"))
+
 	s.PanelInactive = basePanel.Copy().BorderForeground(s.ColorBorderInactive)
 
 	s.TitleActive = lipgloss.NewStyle().Foreground(s.ColorAccent).Bold(true)
 	s.TitleInactive = lipgloss.NewStyle().Foreground(s.ColorFaint)
 
-	// Tab bar — clean, no backgrounds, just color change
+	// Tab bar — Modern curly underlines for active tab
 	s.TabActive = lipgloss.NewStyle().
 		Foreground(s.ColorAccent).
 		Bold(true).
+        Underline(true).
+        UnderlineStyle(lipgloss.UnderlineCurly).
+        UnderlineColor(s.ColorAccent).
 		Padding(0, 1)
 
 	s.TabInactive = lipgloss.NewStyle().
@@ -154,13 +163,13 @@ func DefaultStyles() Styles {
 	s.InputFocused = lipgloss.NewStyle().
 		Foreground(s.ColorText).
 		Padding(0, 1).
-		Border(lipgloss.NormalBorder(), false, false, false, true).
-		BorderForeground(s.ColorAccent)
+		Border(lipgloss.RoundedBorder(), false, false, false, true).
+		BorderForegroundBlend(s.ColorAccent, lipgloss.Color("#89B4FA"))
 
 	s.InputUnfocused = lipgloss.NewStyle().
 		Foreground(s.ColorSubtext).
 		Padding(0, 1).
-		Border(lipgloss.NormalBorder(), false, false, false, true).
+		Border(lipgloss.RoundedBorder(), false, false, false, true).
 		BorderForeground(s.ColorBorderInactive)
 
 	s.Suggestion = lipgloss.NewStyle().

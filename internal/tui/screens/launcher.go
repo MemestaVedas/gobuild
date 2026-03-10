@@ -10,11 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"image/color"
+
 	"github.com/MemestaVedas/gobuild/internal/builder"
 	"github.com/MemestaVedas/gobuild/internal/core"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	lipglossV1 "github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // ── Palette ─────────────────────────────────────────────────────────────────
@@ -214,10 +217,16 @@ func NewLauncher(bm *core.BuildManager, bldr *builder.Builder) *Launcher {
 
 	mk := func() textinput.Model {
 		t := textinput.New()
-		t.Cursor.Style = lipgloss.NewStyle().Foreground(lGreen)
-		t.PromptStyle = lipgloss.NewStyle().Foreground(lGreen).Bold(true)
-		t.TextStyle = lipgloss.NewStyle().Foreground(lText)
-		t.PlaceholderStyle = lipgloss.NewStyle().Foreground(lFaint)
+		
+		// Map v1 colors specifically for textinput
+		v1Green := lipglossV1.Color("#A6E3A1")
+		v1Text := lipglossV1.Color("#CDD6F4")
+		v1Faint := lipglossV1.Color("#585B70")
+
+		t.Cursor.Style = lipglossV1.NewStyle().Foreground(v1Green)
+		t.PromptStyle = lipglossV1.NewStyle().Foreground(v1Green).Bold(true)
+		t.TextStyle = lipglossV1.NewStyle().Foreground(v1Text)
+		t.PlaceholderStyle = lipglossV1.NewStyle().Foreground(v1Faint)
 		t.ShowSuggestions = true
 		return t
 	}
@@ -436,7 +445,7 @@ func (l *Launcher) View() string {
 
 	for i := range l.inputs {
 		focused := i == l.focused
-		var accent lipgloss.Color
+		var accent color.Color
 		if focused {
 			accent = lGreen
 		} else {

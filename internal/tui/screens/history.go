@@ -6,7 +6,7 @@ import (
 
 	"github.com/MemestaVedas/gobuild/internal/core"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 type History struct {

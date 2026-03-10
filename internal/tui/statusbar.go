@@ -2,9 +2,10 @@ package tui
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // StatusBarModel renders the bottom hints bar (lazygit-style).
@@ -50,7 +51,7 @@ func (s *StatusBarModel) View(mode Mode, width int) string {
 
 func (s *StatusBarModel) renderModeLine(mode Mode, width int) string {
 	// Mode pill
-	var modeColor lipgloss.Color
+	var modeColor color.Color
 	var modeText string
 	switch mode {
 	case ModeInsert:

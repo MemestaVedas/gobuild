@@ -7,7 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 
 	"github.com/MemestaVedas/gobuild/internal/builder"
 	"github.com/MemestaVedas/gobuild/internal/core"
@@ -85,8 +85,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		// The workspace height = total - top(1) - tabs(1) - sep1(1) - sep2(1) - status(1) - sep3(1) - hints(1) - bot(1)
-		wsHeight := m.height - 8
+		// Chrome = TopBorder(1) + Tabs(1) + StatusMode(1) + Hints(1) + BottomBorder(1) = 5
+		wsHeight := m.height - 5
 		if wsHeight < 0 {
 			wsHeight = 0
 		}
@@ -322,56 +322,26 @@ func (m *AppModel) View() string {
 	if innerW < 0 {
 		innerW = 0
 	}
-	// statusBar.View now returns 2 lines (status + hints); reserve 9 rows total for chrome
-	wsHeight := m.height - 9
-	if wsHeight < 0 {
-		wsHeight = 0
-	}
-
-	borderStyle := lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive)
-
-	top := borderStyle.Render("┌" + safeRepeat("─", innerW) + "┐")
-	vert := borderStyle.Render("│")
-
+	// We removed manual top, bot, and separators. Now using a single Lipgloss box!
 	tabsContent := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, m.tabs.View(innerW))
-	tabs := vert + tabsContent + vert
-
-	sep1 := borderStyle.Render("├" + safeRepeat("─", innerW) + "┤")
-
 	activeScreen := m.screens[m.activeTab].View()
-	workspaceLines := strings.Split(activeScreen, "\n")
+	statusContent := m.statusBar.View(m.mode, innerW)
 
-	var wsRendered []string
-	for i := 0; i < wsHeight; i++ {
-		line := ""
-		if i < len(workspaceLines) {
-			line = workspaceLines[i]
-		}
-		renderedLine := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, line)
-		wsRendered = append(wsRendered, vert+renderedLine+vert)
-	}
-
-	sep2 := borderStyle.Render("├" + safeRepeat("─", innerW) + "┤")
-
-	// statusBar.View returns BOTH the status line AND hints line joined
-	statusRendered := m.statusBar.View(m.mode, innerW)
-	statusLines := strings.Split(statusRendered, "\n")
-	var statusBlock []string
-	for _, sl := range statusLines {
-		statusBlock = append(statusBlock, vert+lipgloss.PlaceHorizontal(innerW, lipgloss.Left, sl)+vert)
-	}
-
-	bot := borderStyle.Render("└" + safeRepeat("─", innerW) + "┘")
-
-	return lipgloss.JoinVertical(lipgloss.Left,
-		top,
-		tabs,
-		sep1,
-		strings.Join(wsRendered, "\n"),
-		sep2,
-		strings.Join(statusBlock, "\n"),
-		bot,
+	// Combine inside the box
+	content := lipgloss.JoinVertical(lipgloss.Left,
+		tabsContent,
+		activeScreen,
+		statusContent,
 	)
+
+	// Apply gradient border around the whole application
+	appStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForegroundBlend(m.styles.ColorAccent, lipgloss.Color("#89B4FA")).
+		Width(innerW).
+		Height(m.height - 2)
+
+	return appStyle.Render(content)
 }
 
 // hintsBar removed — hints are now part of StatusBarModel.View()

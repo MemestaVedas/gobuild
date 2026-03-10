@@ -2,11 +2,12 @@ package screens
 
 import (
 	"fmt"
+	"image/color"
 	"strings"
 
 	"github.com/MemestaVedas/gobuild/internal/core"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // ── Palette (lazygit-inspired + aurora pastels) ─────────────────────────────
@@ -240,7 +241,7 @@ func (d *Dashboard) renderLogs(width int) string {
 	var lines []string
 	for _, b := range all {
 		for _, ll := range b.LogLines {
-			var c lipgloss.Color
+			var c color.Color
 			switch ll.Level {
 			case core.LogError:
 				c = dRed
@@ -267,7 +268,7 @@ func (d *Dashboard) renderLogs(width int) string {
 }
 
 func (d *Dashboard) renderStats(width int) string {
-	row := func(label, val string, valColor lipgloss.Color) string {
+	row := func(label, val string, valColor color.Color) string {
 		l := lipgloss.NewStyle().Foreground(dSubtext).Width(20).Render("  " + label)
 		v := lipgloss.NewStyle().Foreground(valColor).Bold(true).Render(val)
 		return l + v
