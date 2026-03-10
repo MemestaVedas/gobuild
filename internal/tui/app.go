@@ -113,6 +113,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tabs.SetActive(0)
 		m.mode = ModeNormal
 		return m, nil
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 	}
 
 	// Always forward uncaught messages to the active screen
@@ -259,6 +261,51 @@ func (m *AppModel) executeCommand(cmdStr string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *AppModel) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Type != tea.MouseLeft {
+		// Forward scroll/movement events to active screen
+		mod, cmd := m.screens[m.activeTab].Update(msg)
+		m.screens[m.activeTab] = mod.(screens.Screen)
+		return m, cmd
+	}
+
+	// Y = 1 is the tabs row assuming Y=0 is the top border
+	if msg.Y == 1 {
+		x := msg.X
+		newTab := -1
+		if x >= 2 && x <= 13 {
+			newTab = 0
+		} else if x >= 15 && x <= 25 {
+			newTab = 1
+		} else if x >= 27 && x <= 36 {
+			newTab = 2
+		} else if x >= 38 && x <= 47 {
+			newTab = 3
+		} else if x >= 49 && x <= 55 {
+			newTab = 4
+		}
+
+		if newTab != -1 && newTab != m.activeTab {
+			m.screens[m.activeTab].Blur()
+			m.activeTab = newTab
+			m.tabs.SetActive(newTab)
+			m.mode = ModeNormal
+			m.commandBuf = ""
+			
+			// If moving to Launcher, automatically focus it
+			if newTab == 1 {
+				m.screens[m.activeTab].Focus()
+			}
+			return m, nil
+		}
+	}
+
+	// Forward other clicks to active screen
+	mod, cmd := m.screens[m.activeTab].Update(msg)
+	m.screens[m.activeTab] = mod.(screens.Screen)
+	return m, cmd
+}
+
 func safeRepeat(s string, count int) string {
 	if count <= 0 {
 		return ""
@@ -275,18 +322,21 @@ func (m *AppModel) View() string {
 	if innerW < 0 {
 		innerW = 0
 	}
-	wsHeight := m.height - 8
+	// statusBar.View now returns 2 lines (status + hints); reserve 9 rows total for chrome
+	wsHeight := m.height - 9
 	if wsHeight < 0 {
 		wsHeight = 0
 	}
 
-	top := "┌" + safeRepeat("─", innerW) + "┐"
+	borderStyle := lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive)
 
-	// Ensure these components render to exact width
+	top := borderStyle.Render("┌" + safeRepeat("─", innerW) + "┐")
+	vert := borderStyle.Render("│")
+
 	tabsContent := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, m.tabs.View(innerW))
-	tabs := "│" + tabsContent + "│"
+	tabs := vert + tabsContent + vert
 
-	sep1 := "├" + safeRepeat("─", innerW) + "┤"
+	sep1 := borderStyle.Render("├" + safeRepeat("─", innerW) + "┤")
 
 	activeScreen := m.screens[m.activeTab].View()
 	workspaceLines := strings.Split(activeScreen, "\n")
@@ -298,41 +348,33 @@ func (m *AppModel) View() string {
 			line = workspaceLines[i]
 		}
 		renderedLine := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, line)
-		wsRendered = append(wsRendered, "│"+renderedLine+"│")
+		wsRendered = append(wsRendered, vert+renderedLine+vert)
 	}
 
-	sep2 := "├" + safeRepeat("─", innerW) + "┤"
+	sep2 := borderStyle.Render("├" + safeRepeat("─", innerW) + "┤")
 
-	statusContent := lipgloss.PlaceHorizontal(innerW, lipgloss.Left, m.statusBar.View(m.mode, innerW))
-	status := "│" + statusContent + "│"
+	// statusBar.View returns BOTH the status line AND hints line joined
+	statusRendered := m.statusBar.View(m.mode, innerW)
+	statusLines := strings.Split(statusRendered, "\n")
+	var statusBlock []string
+	for _, sl := range statusLines {
+		statusBlock = append(statusBlock, vert+lipgloss.PlaceHorizontal(innerW, lipgloss.Left, sl)+vert)
+	}
 
-	bot := "└" + safeRepeat("─", innerW) + "┘"
+	bot := borderStyle.Render("└" + safeRepeat("─", innerW) + "┘")
 
 	return lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(top),
+		top,
 		tabs,
-		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(sep1),
+		sep1,
 		strings.Join(wsRendered, "\n"),
-		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(sep2),
-		status,
-		lipgloss.NewStyle().Foreground(m.styles.ColorBorderInactive).Render(bot),
+		sep2,
+		strings.Join(statusBlock, "\n"),
+		bot,
 	)
 }
 
-func (m *AppModel) hintsBar(width int) string {
-	var content string
-	if m.mode == ModeCommand {
-		content = ":" + m.commandBuf + "_"
-	} else {
-		content = "  r Run   x Kill   f Focus Log   o Open Editor   / Search"
-		if m.activeTab == 1 { // Launcher
-			content = "  Tab Complete   Esc Normal Mode   Up/Down Move Field"
-		} else if m.activeTab == 2 { // History
-			content = "  Enter View Logs  o Open  r Re-run  / Search  Del Delete"
-		}
-	}
-	return m.styles.HintsBar.Copy().Width(width).Render(content)
-}
+// hintsBar removed — hints are now part of StatusBarModel.View()
 
 // Global ticks
 func tickStatsUpdate() tea.Cmd {

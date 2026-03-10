@@ -48,7 +48,7 @@ var buildCommands = map[string]core.BuildTool{
 // buildSubcommands filters go/npm/cargo by sub-command.
 var buildSubcommands = map[string][]string{
 	"cargo": {"build", "test", "check", "run"},
-	"go":    {"build", "test", "generate", "install"},
+	"go":    {"build", "test", "generate", "install", "run"},
 	"npm":   {"run", "build", "install", "ci"},
 }
 
@@ -98,14 +98,15 @@ func (l *LinuxPlatform) WatchProcess(pid int, onChange func(core.ProcessInfo)) e
 			cmdline, err := readProcFile(pid, "cmdline")
 			if err != nil {
 				// Process ended
+				onChange(core.ProcessInfo{PID: pid})
 				return
 			}
 			parts := strings.Split(strings.TrimRight(cmdline, "\x00"), "\x00")
-			info, err := buildProcessInfo(pid, parts)
+			_, err = buildProcessInfo(pid, parts)
 			if err != nil {
+				onChange(core.ProcessInfo{PID: pid})
 				return
 			}
-			onChange(info)
 		}
 	}()
 	return nil
@@ -314,21 +315,45 @@ func isBuildCommand(parts []string) bool {
 	if len(parts) == 0 {
 		return false
 	}
-	base := filepath.Base(parts[0])
-	tool, ok := buildCommands[base]
-	if !ok {
+	
+	// Skip common interpreters to find the actual compiled/script binary
+	idx := 0
+	for idx < len(parts) {
+		base := filepath.Base(parts[idx])
+		if base == "bash" || base == "sh" || base == "zsh" || base == "env" || base == "node" || base == "python" || base == "python3" {
+			idx++
+		} else {
+			break
+		}
+	}
+	
+	if idx >= len(parts) {
 		return false
 	}
-	// For tools with sub-command filtering, check the second argument
+
+	base := filepath.Base(parts[idx])
+	tool, ok := buildCommands[base]
+	if !ok {
+		// Android Gradle Daemon fallback
+		if base == "java" || base == "java.exe" {
+			for _, p := range parts {
+				if strings.Contains(p, "gradle") {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	// For tools with sub-command filtering, check the next argument
 	subs, hasSubs := buildSubcommands[base]
 	if !hasSubs {
 		return true
 	}
-	if len(parts) < 2 {
+	if idx+1 >= len(parts) {
 		return false
 	}
 	for _, s := range subs {
-		if parts[1] == s {
+		if parts[idx+1] == s {
 			_ = tool
 			return true
 		}
@@ -349,11 +374,35 @@ func buildProcessInfo(pid int, parts []string) (core.ProcessInfo, error) {
 
 	cwd, _ := os.Readlink(fmt.Sprintf("/proc/%d/cwd", pid))
 
+	// Skip interpreters for Name detection
+	idx := 0
+	for idx < len(parts) {
+		base := filepath.Base(parts[idx])
+		if base == "bash" || base == "sh" || base == "zsh" || base == "env" || base == "node" || base == "python" || base == "python3" {
+			idx++
+		} else {
+			break
+		}
+	}
+	
+	name := "unknown"
+	if idx < len(parts) {
+		name = filepath.Base(parts[idx])
+		if name == "java" || name == "java.exe" {
+			for _, p := range parts {
+				if strings.Contains(p, "gradle") {
+					name = "gradle [daemon]"
+					break
+				}
+			}
+		}
+	}
+
 	return core.ProcessInfo{
 		PID:     pid,
 		PPID:    ppid,
-		Name:    filepath.Base(parts[0]),
-		CmdLine: strings.Join(parts, " "),
+		Name:    name,
+		CmdLine: strings.Join(parts, " "), // Keep the whole cmdline for display/debug
 		CWD:     cwd,
 	}, nil
 }

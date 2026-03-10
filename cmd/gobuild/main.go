@@ -13,7 +13,7 @@ import (
 	"github.com/MemestaVedas/gobuild/internal/config"
 	"github.com/MemestaVedas/gobuild/internal/core"
 	"github.com/MemestaVedas/gobuild/internal/ipc"
-	"github.com/MemestaVedas/gobuild/internal/platform/windows" // using windows directly for now or conditionally loaded
+	"github.com/MemestaVedas/gobuild/internal/platform"
 	"github.com/MemestaVedas/gobuild/internal/plugin"
 	"github.com/MemestaVedas/gobuild/internal/tui"
 )
@@ -66,7 +66,7 @@ func runApp(cmd *cobra.Command, args []string) {
 	plugin.LoadBuiltins(eb, cfg.Plugins)
 
 	// Platform abstraction (hardcoded Windows for this environment example)
-	plat := windows.New()
+	plat := platform.New()
 
 	// 3. Builder
 	bldr := builder.New(bm)

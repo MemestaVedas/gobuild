@@ -44,10 +44,13 @@ func (h *Help) View() string {
 		"  r  Run Build       x  Kill Build",
 		"  o  Open Error      f  Focus Log",
 		"",
-		"Command Mode (:):",
 		"  :run [profile] Start specific build profile",
 		"  :kill [id]     Kill specific build",
 		"  :q             Quit app",
+		"",
+		"Mobile Setup:",
+		"  Run ./install-mobile.sh to install the companion app.",
+		"  The app will automatically discover GoBuild on your local network.",
 	}
 
 	content := lipgloss.NewStyle().Padding(1, 4).Foreground(lipgloss.Color("#CDD6F4")).Render(strings.Join(contentRows, "\n"))

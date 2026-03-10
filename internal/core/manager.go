@@ -116,3 +116,14 @@ func (bm *BuildManager) FindByPID(pid int) (*Build, bool) {
 	}
 	return nil, false
 }
+
+// AllErrors returns a flat slice of all BuildError entries across all tracked builds.
+func (bm *BuildManager) AllErrors() []BuildError {
+	bm.mu.RLock()
+	defer bm.mu.RUnlock()
+	var out []BuildError
+	for _, b := range bm.builds {
+		out = append(out, b.Errors...)
+	}
+	return out
+}

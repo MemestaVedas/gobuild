@@ -121,6 +121,7 @@ func (w *WindowsPlatform) WatchProcess(pid int, onChange func(core.ProcessInfo))
 		defer ticker.Stop()
 		handle, err := windows.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, uint32(pid))
 		if err != nil {
+			onChange(core.ProcessInfo{PID: pid})
 			return
 		}
 		defer windows.CloseHandle(handle)
@@ -128,9 +129,9 @@ func (w *WindowsPlatform) WatchProcess(pid int, onChange func(core.ProcessInfo))
 			var exitCode uint32
 			if err := windows.GetExitCodeProcess(handle, &exitCode); err != nil || exitCode != 259 {
 				// 259 = STILL_ACTIVE
+				onChange(core.ProcessInfo{PID: pid})
 				return
 			}
-			onChange(core.ProcessInfo{PID: pid})
 		}
 	}()
 	return nil

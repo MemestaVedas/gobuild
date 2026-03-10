@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"io"
 	"os/exec"
+	"runtime"
 	"sync"
 	"time"
 
@@ -24,7 +25,12 @@ func New(bm *core.BuildManager) *Builder {
 // StartBuild kicks off a build process and monitors its output.
 func (b *Builder) StartBuild(build *core.Build) error {
 	// 1. Prepare command
-	cmd := exec.Command("cmd", "/C", build.Command)
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.Command("cmd", "/C", build.Command)
+	} else {
+		cmd = exec.Command("sh", "-c", build.Command)
+	}
 	if build.WorkDir != "" {
 		cmd.Dir = build.WorkDir
 	}

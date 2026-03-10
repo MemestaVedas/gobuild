@@ -2,11 +2,12 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 )
 
-// StatusBarModel renders the main status bar showing Mode, Specs, and Connection.
+// StatusBarModel renders the bottom hints bar (lazygit-style).
 type StatusBarModel struct {
 	styles       Styles
 	version      string
@@ -21,97 +22,162 @@ type StatusBarModel struct {
 	totalWarns   int
 }
 
-// NewStatusBarModel creates a status bar model.
 func NewStatusBarModel(styles Styles) StatusBarModel {
 	return StatusBarModel{
-		styles:      styles,
-		version:     "v1.1",
-		appName:     "GoBuild",
-		isConnected: false,
+		styles:  styles,
+		version: "v1.1",
+		appName: "GoBuild",
 	}
 }
 
-// SetConnected alters the connection text.
-func (s *StatusBarModel) SetConnected(connected bool) {
-	s.isConnected = connected
-}
-
+func (s *StatusBarModel) SetConnected(connected bool) { s.isConnected = connected }
 func (s *StatusBarModel) UpdateStats(cpuPct float64, ramBytes, netUp, netDn uint64) {
 	s.cpuPct = cpuPct
 	s.ramUsedBytes = ramBytes
 	s.netUp = netUp
 	s.netDn = netDn
 }
+func (s *StatusBarModel) SetErrors(errs, warns int) { s.totalErrors = errs; s.totalWarns = warns }
+func (s *StatusBarModel) SetActiveTab(tab int)       { s.activeTab = tab }
 
-func (s *StatusBarModel) SetErrors(errs, warns int) {
-	s.totalErrors = errs
-	s.totalWarns = warns
-}
-
-func (s *StatusBarModel) SetActiveTab(tab int) {
-	s.activeTab = tab
-}
-
-const (
-	separator = ""
-	branch    = ""
-)
-
-// View renders the bottom statusline with dynamic mode colouring.
+// View renders a 2-line block: mode + stats, then hints bar.
 func (s *StatusBarModel) View(mode Mode, width int) string {
+	return lipgloss.JoinVertical(lipgloss.Left,
+		s.renderModeLine(mode, width),
+		s.renderHints(mode, width),
+	)
+}
+
+func (s *StatusBarModel) renderModeLine(mode Mode, width int) string {
+	// Mode pill
 	var modeColor lipgloss.Color
 	var modeText string
 	switch mode {
 	case ModeInsert:
 		modeColor = s.styles.ColorInsert
-		modeText = " INSERT "
+		modeText = "INSERT"
 	case ModeCommand:
 		modeColor = s.styles.ColorCommand
-		modeText = " COMMAND "
+		modeText = "COMMAND"
 	default:
 		modeColor = s.styles.ColorNormal
-		modeText = " NORMAL "
+		modeText = "NORMAL"
 	}
 
-	// 1. Mode segment (Inverse)
-	modeStyle := s.styles.StatusMode.Copy().Background(modeColor)
-	modeSeg := modeStyle.Render(modeText)
+	modeSeg := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#11111B")).
+		Background(modeColor).
+		Bold(true).
+		Padding(0, 1).
+		Render(modeText)
 
-	// 2. Project/Tab name segment
-	tabNames := []string{" Dashboard ", " Launcher ", " History ", " Plugins ", " Help "}
-	tabName := " GoBuild "
+	// Tab name
+	tabNames := []string{"Dashboard", "Launcher", "History", "Plugins", "Help"}
+	tab := s.appName
 	if s.activeTab >= 0 && s.activeTab < len(tabNames) {
-		tabName = tabNames[s.activeTab]
+		tab = tabNames[s.activeTab]
 	}
-	projSeg := s.styles.StatusSegment1.Render(tabName)
+	tabSeg := lipgloss.NewStyle().
+		Foreground(s.styles.ColorAccent).
+		Bold(true).
+		Padding(0, 1).
+		Render(tab)
 
-	// 3. Middle spacers / icons
-	branchSeg := s.styles.StatusSegment2.Render(fmt.Sprintf("%s master", branch))
+	// Right: CPU + RAM + errors
+	var rightParts []string
 
-	// 4. Stats / Errors (Right side)
-	errIcon := ""
 	if s.totalErrors > 0 {
-		errIcon = s.styles.StatusError.Render(fmt.Sprintf("  %d", s.totalErrors))
+		rightParts = append(rightParts,
+			lipgloss.NewStyle().Foreground(s.styles.ColorFailed).Bold(true).Render(
+				fmt.Sprintf("✖ %d", s.totalErrors)))
 	}
-	warnIcon := ""
 	if s.totalWarns > 0 {
-		warnIcon = s.styles.StatusWarning.Render(fmt.Sprintf("  %d", s.totalWarns))
+		rightParts = append(rightParts,
+			lipgloss.NewStyle().Foreground(s.styles.ColorWarning).Bold(true).Render(
+				fmt.Sprintf("⚠ %d", s.totalWarns)))
 	}
 
-	statsText := fmt.Sprintf("  %.0f%%  %.1fG ", s.cpuPct, float64(s.ramUsedBytes)/1024/1024/1024)
-	statsSeg := s.styles.StatusSegment3.Render(statsText)
+	ramGB := float64(s.ramUsedBytes) / 1024 / 1024 / 1024
+	rightParts = append(rightParts,
+		lipgloss.NewStyle().Foreground(s.styles.ColorFaint).Render(
+			fmt.Sprintf(" %.0f%%   %.1fG", s.cpuPct, ramGB)))
 
-	lspSeg := s.styles.StatusSegment2.Render(" build-on")
-
-	left := lipgloss.JoinHorizontal(lipgloss.Top, modeSeg, projSeg, branchSeg)
-	right := lipgloss.JoinHorizontal(lipgloss.Top, errIcon, warnIcon, statsSeg, lspSeg)
-
-	// Join with space
-	availableSpace := width - lipgloss.Width(left) - lipgloss.Width(right)
-	if availableSpace < 0 {
-		availableSpace = 0
+	connDot := "●"
+	connColor := s.styles.ColorFailed
+	if s.isConnected {
+		connColor = s.styles.ColorSuccess
 	}
-	middleSpace := s.styles.StatusSegment2.Copy().Width(availableSpace).Render("")
+	rightParts = append(rightParts,
+		lipgloss.NewStyle().Foreground(connColor).Render(connDot))
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, middleSpace, right)
+	rightParts = append(rightParts,
+		lipgloss.NewStyle().Foreground(s.styles.ColorFaint).Render(s.version))
+
+	left := modeSeg + " " + tabSeg
+	right := strings.Join(rightParts, "  ")
+
+	gap := width - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 0 {
+		gap = 0
+	}
+
+	return left + strings.Repeat(" ", gap) + right
+}
+
+// renderHints produces a lazygit-style hints line:
+// Run: r | Kill: x | Focus Log: f | Search: / | Keybindings: ?
+func (s *StatusBarModel) renderHints(mode Mode, width int) string {
+	if mode == ModeCommand {
+		return lipgloss.NewStyle().
+			Foreground(s.styles.ColorText).
+			Width(width).
+			Render(":")
+	}
+
+	type hint struct{ desc, key string }
+	var hints []hint
+
+	switch s.activeTab {
+	case 0: // Dashboard
+		hints = []hint{
+			{"Run", "r"}, {"Kill", "x"}, {"Focus Log", "f"},
+			{"Open Editor", "o"}, {"Details", "d"}, {"Search", "/"},
+			{"Keybindings", "?"},
+		}
+	case 1: // Launcher
+		hints = []hint{
+			{"Complete", "Tab"}, {"Prev Field", "↑"},
+			{"Next Field", "↓"}, {"Del Word", "Ctrl+W"},
+			{"Normal", "Esc"},
+		}
+	case 2: // History
+		hints = []hint{
+			{"View Logs", "Enter"}, {"Re-run", "r"},
+			{"Open", "o"}, {"Search", "/"}, {"Delete", "Del"},
+		}
+	case 3: // Plugins
+		hints = []hint{
+			{"Configure", "Enter"}, {"Toggle", "e"}, {"Remove", "Del"},
+		}
+	default: // Help
+		hints = []hint{
+			{"Scroll", "j/k"}, {"Quit", "q"},
+		}
+	}
+
+	green := s.styles.HintKey
+	faint := s.styles.HintDesc
+
+	var parts []string
+	for _, h := range hints {
+		parts = append(parts, faint.Render(h.desc+": ")+green.Render(h.key))
+	}
+
+	row := strings.Join(parts, faint.Render(" | "))
+
+	pad := width - lipgloss.Width(row)
+	if pad < 0 {
+		pad = 0
+	}
+	return row + strings.Repeat(" ", pad)
 }
