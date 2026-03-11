@@ -3,6 +3,7 @@ package screens
 import (
 	"strings"
 
+	"github.com/MemestaVedas/gobuild/internal/tui/theme"
 	tea "github.com/charmbracelet/bubbletea"
 	"charm.land/lipgloss/v2"
 )
@@ -12,10 +13,12 @@ type Plugins struct {
 	height int
 	cursor int
 	items  []string
+	styles theme.Styles
 }
 
-func NewPlugins() *Plugins {
+func NewPlugins(styles theme.Styles) *Plugins {
 	return &Plugins{
+		styles: styles,
 		items: []string{
 			"slack-notify    | ● Active | Post to Slack on build end",
 			"discord-notify  | ○ Off    | Post to Discord channel",
@@ -30,48 +33,60 @@ func (p *Plugins) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		p.width = msg.Width
-		p.height = msg.Height - 3
+		p.height = msg.Height
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "up", "k":
-			if p.cursor > 0 {
-				p.cursor--
-			}
+			if p.cursor > 0 { p.cursor-- }
 		case "down", "j":
-			if p.cursor < len(p.items)-1 {
-				p.cursor++
-			}
+			if p.cursor < len(p.items)-1 { p.cursor++ }
 		}
 	}
 	return p, nil
 }
 
 func (p *Plugins) View() string {
-	titleColor := lipgloss.Color("#CBA6F7")
-	title := "  PLUGINS "
-
-	titleRow := lipgloss.NewStyle().Foreground(titleColor).Bold(true).Render(title)
-
+	if p.width <= 0 || p.height <= 0 { return "" }
+	
 	header := "  Plugin          | Status   | Description"
 	var rows []string
-	rows = append(rows, "")
-	rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#6C7086")).Render(header))
-	rows = append(rows, "  "+safeRepeat("-", p.width-4))
+	rows = append(rows, lipgloss.NewStyle().Foreground(p.styles.ColorFaint).Render(header))
+	rows = append(rows, lipgloss.NewStyle().Foreground(p.styles.ColorBorderDim).Render(strings.Repeat("─", p.width-4)))
 
 	for i, item := range p.items {
 		cursor := "  "
+		c := p.styles.ColorText
 		if i == p.cursor {
 			cursor = "▸ "
+			c = p.styles.ColorAccent
 		}
-		rows = append(rows, lipgloss.NewStyle().Foreground(lipgloss.Color("#CDD6F4")).Render("  "+cursor+item))
+		rows = append(rows, lipgloss.NewStyle().Foreground(c).Render("  "+cursor+item))
 	}
 
 	content := strings.Join(rows, "\n")
-	contentStyle := lipgloss.NewStyle().
-		Width(p.width).
-		Height(p.height)
+	return p.panel("Available Plugins", p.width, p.height, content)
+}
 
-	return lipgloss.JoinVertical(lipgloss.Left, titleRow, contentStyle.Render(content))
+func (p *Plugins) panel(title string, w, h int, content string) string {
+	bColor := p.styles.ColorBorderInactive
+	titleStyled := lipgloss.NewStyle().Foreground(p.styles.ColorText).Render(" " + title + " ")
+	
+	titleBarWidth := w - 2
+	if titleBarWidth < 0 { titleBarWidth = 0 }
+
+	topLine := lipgloss.NewStyle().Foreground(bColor).Render("╭") +
+		titleStyled +
+		lipgloss.NewStyle().Foreground(bColor).Render(strings.Repeat("─", titleBarWidth-lipgloss.Width(titleStyled))) +
+		lipgloss.NewStyle().Foreground(bColor).Render("╮")
+
+	box := lipgloss.NewStyle().
+		Width(w - 2).Height(h - 2).
+		BorderLeft(true).BorderBottom(true).BorderRight(true).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(bColor).
+		Render(content)
+
+	return lipgloss.JoinVertical(lipgloss.Left, topLine, box)
 }
 
 func (p *Plugins) Focus() {}

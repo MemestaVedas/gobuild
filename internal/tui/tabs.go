@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MemestaVedas/gobuild/internal/tui/theme"
 	"charm.land/lipgloss/v2"
 )
 
 // TabBarModel manages the top tab bar display.
 type TabBarModel struct {
-	styles    Styles
+	styles    theme.Styles
 	activeTab int
 	tabs      []string
 }
 
-func NewTabBarModel(styles Styles) TabBarModel {
+func NewTabBarModel(styles theme.Styles) TabBarModel {
 	return TabBarModel{
 		styles: styles,
 		tabs: []string{

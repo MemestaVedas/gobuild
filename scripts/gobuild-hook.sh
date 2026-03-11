@@ -7,6 +7,10 @@
 # Usage:
 #   source /path/to/gobuild-hook.sh
 
+_gobuild_bold() { echo -e "\033[1m$1\033[0m"; }
+_gobuild_info() { echo -e "\033[36m$1\033[0m"; }
+_gobuild_success() { echo -e "\033[32m$1\033[0m"; }
+
 _gobuild_intercept() {
     local cmd=$1
     shift
@@ -27,34 +31,44 @@ _gobuild_intercept() {
         return $?
     fi
     
-    # Very basic check: 
-    # Use jq if available to check if the current directory is watched for this command.
+    # Check if current directory (or its parents) is watched
     if command -v jq &> /dev/null; then
-        local is_watched=$(jq -r --arg cwd "$cwd" --arg cmd "$full_cmd" '
-            .directories[] | .path as $p | select($cwd | startswith($p)) | .commands[] | select(. == $cmd)
+        # Normalise paths by removing trailing slashes for comparison
+        local norm_cwd="${cwd%/}"
+        
+        local is_watched=$(jq -r --arg cwd "$norm_cwd" --arg cmd "$full_cmd" '
+            .Directories[] | 
+            .Path as $p | 
+            ($p | sub("/$"; "")) as $norm_p |
+            select($cwd == $norm_p or ($cwd | startswith($norm_p + "/"))) | 
+            .Commands[] | select(. == $cmd)
         ' "$watch_file" 2>/dev/null)
         
         if [ -n "$is_watched" ]; then
             # Command is watched! Proxy it to goBuild daemon.
-            # We assume `gobuild` is in the PATH.
             if command -v gobuild &> /dev/null; then
-                echo -e "\033[36m[goBuild] Intercepting: $full_cmd\033[0m"
+                _gobuild_info "[goBuild] Intercepting: $full_cmd"
                 gobuild proxy "$cmd" "$@"
                 return $?
             else
-                # Fallback if gobuild is not in PATH but gobuild can be run via go run
-                # (For development testing)
-                if [ -d "$HOME/project/goBuild/gobuild" ]; then
-                    echo -e "\033[36m[goBuild] Intercepting (dev mode): $full_cmd\033[0m"
-                    (cd "$HOME/project/goBuild/gobuild" && go run cmd/gobuild/main.go proxy "$cmd" "$@")
-                    return $?
+                # Check for dev path
+                local dev_bin="$HOME/project/goBuild/gobuild/gobuild"
+                if [ -f "$dev_bin" ]; then
+                     _gobuild_info "[goBuild] Intercepting (dev): $full_cmd"
+                     "$dev_bin" proxy "$cmd" "$@"
+                     return $?
                 fi
             fi
         fi
     fi
     
-    # Not watched or jq missing, run normally
+    # Not watched or jq missing, run normally. 
+    # Use a hidden/faint color for skip message to avoid noise.
+    # To debug why something isn't showing, uncomment the line below:
+    # _gobuild_info "  [goBuild] Skipped: not in watch list" &> /dev/null
+    
     command "$cmd" "$@"
+    return $?
 }
 
 # Aliases for common dev tools we might want to watch
@@ -64,3 +78,6 @@ alias pnpm='_gobuild_intercept pnpm'
 alias cargo='_gobuild_intercept cargo'
 alias make='_gobuild_intercept make'
 alias go='_gobuild_intercept go'
+
+_gobuild_success "✔ goBuild shell integration active."
+_gobuild_info "  Watching commands in directories defined in ~/.config/gobuild/watch.json"

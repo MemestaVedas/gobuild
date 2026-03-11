@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
-
+	"github.com/MemestaVedas/gobuild/internal/tui/theme"
 	"charm.land/lipgloss/v2"
 )
 
 // StatusBarModel renders the bottom hints bar (lazygit-style).
 type StatusBarModel struct {
-	styles       Styles
+	styles       theme.Styles
 	version      string
 	appName      string
 	isConnected  bool
@@ -23,7 +23,7 @@ type StatusBarModel struct {
 	totalWarns   int
 }
 
-func NewStatusBarModel(styles Styles) StatusBarModel {
+func NewStatusBarModel(styles theme.Styles) StatusBarModel {
 	return StatusBarModel{
 		styles:  styles,
 		version: "v1.1",
@@ -166,15 +166,15 @@ func (s *StatusBarModel) renderHints(mode Mode, width int) string {
 		}
 	}
 
-	green := s.styles.HintKey
-	faint := s.styles.HintDesc
+	keyStyle := lipgloss.NewStyle().Foreground(s.styles.ColorHintKey)
+	descStyle := lipgloss.NewStyle().Foreground(s.styles.ColorHintDesc)
 
 	var parts []string
 	for _, h := range hints {
-		parts = append(parts, faint.Render(h.desc+": ")+green.Render(h.key))
+		parts = append(parts, descStyle.Render(h.desc+": ")+keyStyle.Render(h.key))
 	}
 
-	row := strings.Join(parts, faint.Render(" | "))
+	row := strings.Join(parts, descStyle.Render(" | "))
 
 	pad := width - lipgloss.Width(row)
 	if pad < 0 {

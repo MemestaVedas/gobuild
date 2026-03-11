@@ -12,6 +12,7 @@ import (
 	"github.com/MemestaVedas/gobuild/internal/config"
 	"github.com/MemestaVedas/gobuild/internal/core"
 	"github.com/MemestaVedas/gobuild/internal/tui/screens"
+	"github.com/MemestaVedas/gobuild/internal/tui/theme"
 )
 
 // Messages
@@ -31,7 +32,7 @@ type AppModel struct {
 	activeTab  int
 	width      int
 	height     int
-	styles     Styles
+	styles     theme.Styles
 	keys       KeyMap
 	statusBar  StatusBarModel
 	tabs       TabBarModel
@@ -47,7 +48,7 @@ type AppModel struct {
 }
 
 func NewAppModel(bm *core.BuildManager, bldr *builder.Builder, isDark bool) *AppModel {
-	styles := DefaultStyles(isDark)
+	styles := theme.DefaultStyles(isDark)
 
 	// Detect first-run: watch.json missing or has no directories.
 	cfg, _ := config.Load()
@@ -64,11 +65,11 @@ func NewAppModel(bm *core.BuildManager, bldr *builder.Builder, isDark bool) *App
 		bldr:      bldr,
 		showSetup: needsSetup,
 		screens: []screens.Screen{
-			screens.NewDashboard(bm),
-			screens.NewLauncher(bm, bldr),
-			screens.NewHistory(bm),
-			screens.NewPlugins(),
-			screens.NewHelp(),
+			screens.NewDashboard(bm, styles),
+			screens.NewLauncher(bm, bldr, styles),
+			screens.NewHistory(bm, styles),
+			screens.NewPlugins(styles),
+			screens.NewHelp(styles),
 		},
 	}
 	if needsSetup {
@@ -90,7 +91,6 @@ func (m *AppModel) Init() tea.Cmd {
 }
 
 func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// While setup is open, route everything through it (except window resize)
 	if m.showSetup && m.setup != nil {
 		switch msg := msg.(type) {
 		case SetupDoneMsg:
@@ -119,11 +119,8 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		// Chrome rows: tab bar (1) + top sep (1) + bottom sep (1) + statusbar modeline (1) + statusbar hints (1) = 5
 		innerH := m.height - 5
-		if innerH < 0 {
-			innerH = 0
-		}
+		if innerH < 0 { innerH = 0 }
 		screenMsg := tea.WindowSizeMsg{Width: m.width, Height: innerH}
 		for i := range m.screens {
 			mod, _ := m.screens[i].Update(screenMsg)
@@ -144,20 +141,32 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	mod, cmd = m.screens[m.activeTab].Update(msg)
 	m.screens[m.activeTab] = mod.(screens.Screen)
 
-	// Sync status bar error counts
 	m.statusBar.SetActiveTab(m.activeTab)
 	totalErrs, totalWarns := 0, 0
 	for _, b := range m.bm.All() {
 		for _, e := range b.Errors {
-			if e.Level == core.LogError {
-				totalErrs++
-			} else {
-				totalWarns++
-			}
+			if e.Level == core.LogError { totalErrs++ } else { totalWarns++ }
 		}
 	}
 	m.statusBar.SetErrors(totalErrs, totalWarns)
 
+	return m, cmd
+}
+
+func (m *AppModel) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if msg.Type == tea.MouseLeft && msg.Y == 0 {
+		tabW := m.width / len(m.screens)
+		if tabW > 0 {
+			tabIdx := msg.X / tabW
+			if tabIdx >= 0 && tabIdx < len(m.screens) {
+				m.activeTab = tabIdx
+				m.tabs.SetActive(tabIdx)
+				return m, nil
+			}
+		}
+	}
+	mod, cmd := m.screens[m.activeTab].Update(msg)
+	m.screens[m.activeTab] = mod.(screens.Screen)
 	return m, cmd
 }
 
@@ -192,26 +201,19 @@ func (m *AppModel) handleNormalKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switchTab := func(idx int) (tea.Model, tea.Cmd) {
+		m.screens[m.activeTab].Blur()
 		m.activeTab = idx
 		m.tabs.SetActive(idx)
+		m.screens[m.activeTab].Focus()
+		if idx == 1 { m.mode = ModeInsert } else { m.mode = ModeNormal }
 		return m, nil
 	}
 
-	if key.Matches(msg, m.keys.Tab1) {
-		return switchTab(0)
-	}
-	if key.Matches(msg, m.keys.Tab2) {
-		return switchTab(1)
-	}
-	if key.Matches(msg, m.keys.Tab3) {
-		return switchTab(2)
-	}
-	if key.Matches(msg, m.keys.Tab4) {
-		return switchTab(3)
-	}
-	if key.Matches(msg, m.keys.Help, m.keys.Tab5) {
-		return switchTab(4)
-	}
+	if key.Matches(msg, m.keys.Tab1) { return switchTab(0) }
+	if key.Matches(msg, m.keys.Tab2) { return switchTab(1) }
+	if key.Matches(msg, m.keys.Tab3) { return switchTab(2) }
+	if key.Matches(msg, m.keys.Tab4) { return switchTab(3) }
+	if key.Matches(msg, m.keys.Help, m.keys.Tab5) { return switchTab(4) }
 
 	if msg.String() == "i" || msg.String() == "a" || msg.String() == "enter" {
 		m.mode = ModeInsert
@@ -242,9 +244,7 @@ func (m *AppModel) handleCommandKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if msg.Type == tea.KeyRunes || msg.Type == tea.KeySpace {
 		m.commandBuf += string(msg.Runes)
 	} else if msg.Type == tea.KeyBackspace {
-		if len(m.commandBuf) > 0 {
-			m.commandBuf = m.commandBuf[:len(m.commandBuf)-1]
-		}
+		if len(m.commandBuf) > 0 { m.commandBuf = m.commandBuf[:len(m.commandBuf)-1] }
 	}
 	return m, nil
 }
@@ -258,33 +258,15 @@ func (m *AppModel) executeCommand(cmdStr string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *AppModel) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	mod, cmd := m.screens[m.activeTab].Update(msg)
-	m.screens[m.activeTab] = mod.(screens.Screen)
-	return m, cmd
-}
-
-// ── View ──────────────────────────────────────────────────────────────────────
-// Flat layout: tabs row + screen content + status bar.
-// No outer border — avoids all the width calculation issues.
-
 func (m *AppModel) View() string {
-	if m.width <= 0 || m.height <= 0 {
-		return "Initializing..."
-	}
-
-	// Show the setup wizard as a full-screen overlay when active
-	if m.showSetup && m.setup != nil {
-		return m.setup.View()
-	}
+	if m.width <= 0 || m.height <= 0 { return "Initializing..." }
+	if m.showSetup && m.setup != nil { return m.setup.View() }
 
 	tabRow := m.tabs.View(m.width)
 	screen := m.screens[m.activeTab].View()
 	statusRow := m.statusBar.View(m.mode, m.width)
 
-	sep := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#313244")).
-		Render(strings.Repeat("─", m.width))
+	sep := lipgloss.NewStyle().Foreground(lipgloss.Color("#313244")).Render(strings.Repeat("─", m.width))
 
 	return lipgloss.JoinVertical(lipgloss.Left,
 		tabRow,

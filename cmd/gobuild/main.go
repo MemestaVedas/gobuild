@@ -188,7 +188,7 @@ func runApp(cmd *cobra.Command, args []string) {
 								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "[External Process] Output cannot be captured because this process was"},
 								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "started outside of the gobuild shell proxy hook."},
 								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "To capture output, you must integrate the shell hook by running:"},
-								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "    source /path/to/gobuild/scripts/gobuild-hook.sh"},
+								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "    source /home/mv/project/goBuild/gobuild/scripts/gobuild-hook.sh"},
 							},
 						}
 						bm.Add(b)

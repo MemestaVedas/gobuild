@@ -3,6 +3,7 @@ package screens
 import (
 	"strings"
 
+	"github.com/MemestaVedas/gobuild/internal/tui/theme"
 	tea "github.com/charmbracelet/bubbletea"
 	"charm.land/lipgloss/v2"
 )
@@ -10,10 +11,11 @@ import (
 type Help struct {
 	width  int
 	height int
+	styles theme.Styles
 }
 
-func NewHelp() *Help {
-	return &Help{}
+func NewHelp(styles theme.Styles) *Help {
+	return &Help{styles: styles}
 }
 
 func (h *Help) Init() tea.Cmd { return nil }
@@ -22,17 +24,14 @@ func (h *Help) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		h.width = msg.Width
-		h.height = msg.Height - 3
+		h.height = msg.Height
 	}
 	return h, nil
 }
 
 func (h *Help) View() string {
-	titleColor := lipgloss.Color("#CBA6F7")
-	title := "  HELP & KEYBINDINGS "
-
-	titleRow := lipgloss.NewStyle().Foreground(titleColor).Bold(true).Render(title)
-
+	if h.width <= 0 || h.height <= 0 { return "" }
+	
 	contentRows := []string{
 		"Global Navigation (Normal Mode):",
 		"  1, 2, 3, 4, 5  Switch Tabs",
@@ -53,13 +52,30 @@ func (h *Help) View() string {
 		"  The app will automatically discover GoBuild on your local network.",
 	}
 
-	content := lipgloss.NewStyle().Padding(1, 4).Foreground(lipgloss.Color("#CDD6F4")).Render(strings.Join(contentRows, "\n"))
+	content := lipgloss.NewStyle().Padding(1, 2).Foreground(h.styles.ColorText).Render(strings.Join(contentRows, "\n"))
+	return h.panel("Help & Keybindings", h.width, h.height, content)
+}
 
-	contentStyle := lipgloss.NewStyle().
-		Width(h.width).
-		Height(h.height)
+func (h *Help) panel(title string, w, hP int, content string) string {
+	bColor := h.styles.ColorBorderInactive
+	titleStyled := lipgloss.NewStyle().Foreground(h.styles.ColorText).Render(" " + title + " ")
+	
+	titleBarWidth := w - 2
+	if titleBarWidth < 0 { titleBarWidth = 0 }
 
-	return lipgloss.JoinVertical(lipgloss.Left, titleRow, contentStyle.Render(content))
+	topLine := lipgloss.NewStyle().Foreground(bColor).Render("╭") +
+		titleStyled +
+		lipgloss.NewStyle().Foreground(bColor).Render(strings.Repeat("─", titleBarWidth-lipgloss.Width(titleStyled))) +
+		lipgloss.NewStyle().Foreground(bColor).Render("╮")
+
+	box := lipgloss.NewStyle().
+		Width(w - 2).Height(hP - 2).
+		BorderLeft(true).BorderBottom(true).BorderRight(true).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(bColor).
+		Render(content)
+
+	return lipgloss.JoinVertical(lipgloss.Left, topLine, box)
 }
 
 func (h *Help) Focus() {}

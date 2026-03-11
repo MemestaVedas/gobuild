@@ -160,6 +160,24 @@ func (b *Build) IsActive() bool {
 	return b.State == StateBuilding || b.State == StateQueued
 }
 
+// StatusIcon returns a representative icon for the build's current state.
+func (b *Build) StatusIcon() string {
+	switch b.State {
+	case StateSuccess:
+		return "󰄬"
+	case StateFailed:
+		return "󰅖"
+	case StateBuilding:
+		return "󰦖"
+	case StateQueued:
+		return "󱞙"
+	case StateCancelled:
+		return "󰜺"
+	default:
+		return "󰔚"
+	}
+}
+
 // ProcessInfo holds data about a discovered OS process.
 type ProcessInfo struct {
 	PID      int

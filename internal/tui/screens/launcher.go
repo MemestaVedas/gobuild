@@ -14,26 +14,13 @@ import (
 
 	"github.com/MemestaVedas/gobuild/internal/builder"
 	"github.com/MemestaVedas/gobuild/internal/core"
+	"github.com/MemestaVedas/gobuild/internal/tui/theme"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	lipglossV1 "github.com/charmbracelet/lipgloss"
-	"charm.land/lipgloss/v2"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
-// ── Palette ─────────────────────────────────────────────────────────────────
-var (
-	lGreen   = lipgloss.Color("#A6E3A1")
-	lRed     = lipgloss.Color("#F38BA8")
-	lBlue    = lipgloss.Color("#89B4FA")
-	lMauve   = lipgloss.Color("#CBA6F7")
-	lText    = lipgloss.Color("#CDD6F4")
-	lSubtext = lipgloss.Color("#A6ADC8")
-	lFaint   = lipgloss.Color("#585B70")
-	lSurface = lipgloss.Color("#313244")
-	lBase    = lipgloss.Color("#1E1E2E")
-	lOverlay = lipgloss.Color("#45475A")
-	lCrust   = lipgloss.Color("#11111B")
-)
 
 // ── Common build commands ───────────────────────────────────────────────────
 var commonCommands = []string{
@@ -199,6 +186,7 @@ type Launcher struct {
 	focused int
 	bm      *core.BuildManager
 	bldr    *builder.Builder
+	styles  theme.Styles
 	history []string
 
 	dirSugs      []string
@@ -208,20 +196,21 @@ type Launcher struct {
 	statusMsg    string
 }
 
-func NewLauncher(bm *core.BuildManager, bldr *builder.Builder) *Launcher {
+func NewLauncher(bm *core.BuildManager, bldr *builder.Builder, styles theme.Styles) *Launcher {
 	l := &Launcher{
 		bm:      bm,
 		bldr:    bldr,
+		styles:  styles,
 		history: readShellHistory(50),
 	}
 
 	mk := func() textinput.Model {
 		t := textinput.New()
 		
-		// Map v1 colors specifically for textinput
+		// Map theme colors specifically for textinput (which uses lipgloss v1)
 		v1Green := lipglossV1.Color("#A6E3A1")
 		v1Text := lipglossV1.Color("#CDD6F4")
-		v1Faint := lipglossV1.Color("#585B70")
+		v1Faint := lipglossV1.Color("#A6ADC8")
 
 		t.Cursor.Style = lipglossV1.NewStyle().Foreground(v1Green)
 		t.PromptStyle = lipglossV1.NewStyle().Foreground(v1Green).Bold(true)
@@ -433,10 +422,13 @@ func (l *Launcher) View() string {
 		return ""
 	}
 
-	innerW := l.width - 4
+	innerW := 80 // Fixed width for form
+	if innerW > l.width-4 {
+		innerW = l.width - 4
+	}
 
 	// ── Panel title
-	title := lipgloss.NewStyle().Foreground(lGreen).Bold(true).Render("New Build")
+	title := lipgloss.NewStyle().Foreground(l.styles.ColorAccent).Bold(true).Render("New Build")
 	topLine := lipgloss.NewStyle().Padding(1, 1).Render(title)
 
 	// ── Fields ────────────────────────────────────────────────────────
@@ -447,9 +439,9 @@ func (l *Launcher) View() string {
 		focused := i == l.focused
 		var accent color.Color
 		if focused {
-			accent = lGreen
+			accent = l.styles.ColorAccent
 		} else {
-			accent = lFaint
+			accent = l.styles.ColorBorderInactive
 		}
 
 		// Field with left-bar accent
@@ -476,26 +468,26 @@ func (l *Launcher) View() string {
 	// ── Detected tool ─────────────────────────────────────────────────
 	if l.detectedTool != "" {
 		rows = append(rows,
-			lipgloss.NewStyle().Foreground(lGreen).PaddingLeft(2).Render(
+			lipgloss.NewStyle().Foreground(l.styles.ColorAccent).PaddingLeft(2).Render(
 				"Detected: "+l.detectedTool), "")
 	}
 
 	// ── Status msg ────────────────────────────────────────────────────
 	if l.statusMsg != "" {
 		rows = append(rows,
-			lipgloss.NewStyle().Foreground(lGreen).PaddingLeft(2).Render(l.statusMsg), "")
+			lipgloss.NewStyle().Foreground(l.styles.ColorAccent).PaddingLeft(2).Render(l.statusMsg), "")
 	}
 
 	// ── Buttons ───────────────────────────────────────────────────────
 	runBtn := lipgloss.NewStyle().
-		Foreground(lCrust).
-		Background(lGreen).
+		Foreground(l.styles.ColorCrust).
+		Background(l.styles.ColorAccent).
 		Bold(true).
 		Padding(0, 2).
 		Render("▶ Run Build")
 
 	cancelBtn := lipgloss.NewStyle().
-		Foreground(lRed).
+		Foreground(l.styles.ColorFailed).
 		Bold(true).
 		Padding(0, 2).
 		Render("✕ Cancel")
@@ -523,21 +515,21 @@ func (l *Launcher) renderDropdown(items []string, width int, label string) strin
 		if i == l.sugIdx%maxShow {
 			lines = append(lines,
 				lipgloss.NewStyle().
-					Foreground(lGreen).Bold(true).
+					Foreground(l.styles.ColorAccent).Bold(true).
 					Width(width-8).PaddingLeft(1).
 					Render("▸ "+item))
 		} else {
 			lines = append(lines,
 				lipgloss.NewStyle().
-					Foreground(lSubtext).
+					Foreground(l.styles.ColorSubtext).
 					Width(width-8).PaddingLeft(1).
 					Render("  "+item))
 		}
 	}
 
 	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder()).
-		BorderForeground(lOverlay).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(l.styles.ColorBorderInactive).
 		MarginLeft(3).
 		Render(strings.Join(lines, "\n"))
 }
