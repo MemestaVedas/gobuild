@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,6 +18,8 @@ import (
 	"github.com/MemestaVedas/gobuild/internal/platform"
 	"github.com/MemestaVedas/gobuild/internal/plugin"
 	"github.com/MemestaVedas/gobuild/internal/tui"
+
+	"charm.land/lipgloss/v2"
 )
 
 func main() {
@@ -34,7 +38,22 @@ func main() {
 			fmt.Printf("Starting wrapped build: %v\n", args)
 		},
 	}
-	rootCmd.AddCommand(runCmd)
+	
+	proxyCmd := &cobra.Command{
+		Use:   "proxy [command]",
+		Short: "Proxy a command to the running gobuild daemon",
+		Args:  cobra.MinimumNArgs(1),
+		Run: func(cmd *cobra.Command, args []string) {
+			cwd, _ := os.Getwd()
+			err := ipc.SendProxyRequest(cwd, args[0], args[1:])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Proxy failed: %v\n", err)
+				os.Exit(1)
+			}
+		},
+	}
+
+	rootCmd.AddCommand(runCmd, proxyCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
@@ -93,6 +112,31 @@ func runApp(cmd *cobra.Command, args []string) {
 	broadcaster.Start()
 	defer broadcaster.Stop()
 
+	// 4.5. Daemon Server for proxied commands
+	daemon := ipc.NewDaemonServer(func(cmd string, proxyArgs []string, cwd string) error {
+		// Build the full command string properly
+		fullCmd := cmd
+		if len(proxyArgs) > 0 {
+			fullCmd = cmd + " " + strings.Join(proxyArgs, " ")
+		}
+		
+		b := &core.Build{
+			ID:      fmt.Sprintf("proxy-%d", time.Now().UnixNano()),
+			Name:    filepath.Base(cwd),
+			Command: fullCmd,
+			WorkDir: cwd,
+			Tool:    core.ToolGeneric,
+		}
+		
+		log.Printf("Daemon: starting '%s' in %s", fullCmd, cwd)
+		bm.Add(b)
+		return bldr.StartBuild(b)
+	})
+	if err := daemon.Start(); err != nil {
+		log.Printf("Daemon start failed: %v", err)
+	}
+	defer daemon.Stop()
+
 	// 5. Background stats polling and build discovery
 	go func() {
 		ticker := time.NewTicker(2 * time.Second)
@@ -130,7 +174,7 @@ func runApp(cmd *cobra.Command, args []string) {
 			if err == nil {
 				for _, p := range procs {
 					if _, ok := bm.FindByPID(p.PID); !ok {
-						// New build discovered
+						// New build discovered externally
 						buildID := fmt.Sprintf("ext-%d-%d", p.PID, time.Now().Unix())
 						b := &core.Build{
 							ID:        buildID,
@@ -140,6 +184,12 @@ func runApp(cmd *cobra.Command, args []string) {
 							State:     core.StateBuilding,
 							StartTime: time.Now(),
 							Tool:      core.ToolGeneric, // Could try to refine
+							LogLines: []core.LogLine{
+								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "[External Process] Output cannot be captured because this process was"},
+								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "started outside of the gobuild shell proxy hook."},
+								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "To capture output, you must integrate the shell hook by running:"},
+								{Timestamp: time.Now(), Level: core.LogInfo, Raw: "    source /path/to/gobuild/scripts/gobuild-hook.sh"},
+							},
 						}
 						bm.Add(b)
 
@@ -160,7 +210,8 @@ func runApp(cmd *cobra.Command, args []string) {
 	}()
 
 	// 6. Start TUI
-	app := tui.NewAppModel(bm, bldr)
+	isDark := lipgloss.HasDarkBackground(os.Stdin, os.Stderr)
+	app := tui.NewAppModel(bm, bldr, isDark)
 
 	// The tea.WithAltScreen() ensures we restore shell history afterward
 	p := tea.NewProgram(app, tea.WithAltScreen(), tea.WithMouseCellMotion())

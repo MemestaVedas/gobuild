@@ -1,6 +1,9 @@
 package core
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 // BuildState represents the lifecycle state of a build.
 type BuildState int
@@ -134,6 +137,7 @@ type Build struct {
 	EndTime     *time.Time // nil if still running
 	Duration    time.Duration
 	PID         int
+	PTY         *os.File // Handle to the pseudoterminal for interactive io
 	LogLines    []LogLine
 	Errors      []BuildError
 	Tags        []string

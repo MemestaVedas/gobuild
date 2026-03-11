@@ -62,36 +62,37 @@ type Styles struct {
 }
 
 // DefaultStyles returns the lazygit-inspired + aurora-pastel dark theme.
-func DefaultStyles() Styles {
+func DefaultStyles(isDark bool) Styles {
+	ld := lipgloss.LightDark(isDark)
 	s := Styles{
 		// Mode indicators — colourful!
-		ColorNormal:  lipgloss.Color("#89B4FA"), // Soft blue
-		ColorInsert:  lipgloss.Color("#A6E3A1"), // Green
-		ColorCommand: lipgloss.Color("#FAB387"), // Peach
+		ColorNormal:  ld(lipgloss.Color("#5588FF"), lipgloss.Color("#89B4FA")),
+		ColorInsert:  ld(lipgloss.Color("#228822"), lipgloss.Color("#A6E3A1")),
+		ColorCommand: ld(lipgloss.Color("#EE6600"), lipgloss.Color("#FAB387")),
 
 		// Build state — vivid pastels
-		ColorSuccess: lipgloss.Color("#A6E3A1"),
-		ColorWarning: lipgloss.Color("#F9E2AF"),
-		ColorFailed:  lipgloss.Color("#F38BA8"),
-		ColorRunning: lipgloss.Color("#89DCEB"),
-		ColorQueued:  lipgloss.Color("#CBA6F7"),
+		ColorSuccess: ld(lipgloss.Color("#228822"), lipgloss.Color("#A6E3A1")),
+		ColorWarning: ld(lipgloss.Color("#DD9900"), lipgloss.Color("#F9E2AF")),
+		ColorFailed:  ld(lipgloss.Color("#CC2222"), lipgloss.Color("#F38BA8")),
+		ColorRunning: ld(lipgloss.Color("#0088AA"), lipgloss.Color("#89DCEB")),
+		ColorQueued:  ld(lipgloss.Color("#8822AA"), lipgloss.Color("#CBA6F7")),
 
 		// Text ramp
-		ColorText:    lipgloss.Color("#CDD6F4"),
-		ColorSubtext: lipgloss.Color("#A6ADC8"),
-		ColorFaint:   lipgloss.Color("#585B70"),
+		ColorText:    ld(lipgloss.Color("#222222"), lipgloss.Color("#CDD6F4")),
+		ColorSubtext: ld(lipgloss.Color("#444444"), lipgloss.Color("#A6ADC8")),
+		ColorFaint:   ld(lipgloss.Color("#888888"), lipgloss.Color("#585B70")),
 
-		// Surface ramp (dark)
-		ColorCrust:     lipgloss.Color("#11111B"),
-		ColorBase:      lipgloss.Color("#1E1E2E"),
-		ColorSurface:   lipgloss.Color("#313244"),
-		ColorHighlight: lipgloss.Color("#45475A"),
+		// Surface ramp
+		ColorCrust:     ld(lipgloss.Color("#EEEEEE"), lipgloss.Color("#11111B")),
+		ColorBase:      ld(lipgloss.Color("#FFFFFF"), lipgloss.Color("#1E1E2E")),
+		ColorSurface:   ld(lipgloss.Color("#DDDDDD"), lipgloss.Color("#313244")),
+		ColorHighlight: ld(lipgloss.Color("#CCCCCC"), lipgloss.Color("#45475A")),
 
-		// Borders & accent — green primary like lazygit
-		ColorAccent:         lipgloss.Color("#A6E3A1"),
-		ColorBorderActive:   lipgloss.Color("#A6E3A1"), // Green for focused panel
-		ColorBorderInactive: lipgloss.Color("#585B70"), // Subtle grey
-		ColorBorderDim:      lipgloss.Color("#313244"),
+		// Borders & accent
+		ColorAccent:         ld(lipgloss.Color("#228822"), lipgloss.Color("#A6E3A1")),
+		ColorBorderActive:   ld(lipgloss.Color("#228822"), lipgloss.Color("#A6E3A1")),
+		ColorBorderInactive: ld(lipgloss.Color("#888888"), lipgloss.Color("#585B70")),
+		ColorBorderDim:      ld(lipgloss.Color("#CCCCCC"), lipgloss.Color("#313244")),
 	}
 
 	border := lipgloss.RoundedBorder()

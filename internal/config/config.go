@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -15,6 +16,7 @@ type Config struct {
 	UI            UIConfig                `mapstructure:"ui"`
 	Notifications NotificationConfig      `mapstructure:"notifications"`
 	Editor        EditorConfig            `mapstructure:"editor"`
+	Watch         WatchConfig             `mapstructure:"watch"`
 	Plugins       map[string]PluginConfig `mapstructure:"plugins"`
 }
 
@@ -39,6 +41,15 @@ type EditorConfig struct {
 	Command string `mapstructure:"command"`
 }
 
+type WatchConfig struct {
+	Directories []WatchedDir `mapstructure:"directories"`
+}
+
+type WatchedDir struct {
+	Path     string   `mapstructure:"path"`
+	Commands []string `mapstructure:"commands"`
+}
+
 type PluginConfig struct {
 	Enabled    bool              `mapstructure:"enabled"`
 	WebhookURL string            `mapstructure:"webhook_url"`
@@ -61,6 +72,9 @@ func DefaultConfig() *Config {
 		Notifications: NotificationConfig{
 			Desktop: true,
 			Sound:   true,
+		},
+		Watch: WatchConfig{
+			Directories: []WatchedDir{},
 		},
 		Plugins: map[string]PluginConfig{
 			"git-detect":     {Enabled: true},
@@ -129,7 +143,38 @@ func Load() (*Config, error) {
 	if err := v.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("parsing config: %w", err)
 	}
+
+	loadWatchConfig(cfg)
 	return cfg, nil
+}
+
+func loadWatchConfig(cfg *Config) {
+	// We load the watch configuration from a separate watch.json file
+	// to make it easier to manage purely for watched directories and commands
+	// independent of the main UI/server toml config.
+	watchFile := filepath.Join(ConfigDir(), "watch.json")
+	
+	data, err := os.ReadFile(watchFile)
+	if err == nil {
+		var watchCfg WatchConfig
+		if err := json.Unmarshal(data, &watchCfg); err == nil {
+			cfg.Watch = watchCfg
+		}
+	}
+}
+
+// SaveWatchConfig saves the watch configuration to watch.json
+func SaveWatchConfig(cfg *Config) error {
+	watchFile := filepath.Join(ConfigDir(), "watch.json")
+	data, err := json.MarshalIndent(cfg.Watch, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal watch config: %w", err)
+	}
+	
+	if err := os.WriteFile(watchFile, data, 0644); err != nil {
+		return fmt.Errorf("failed to write watch config: %w", err)
+	}
+	return nil
 }
 
 // EnsureConfigDir creates the config directory if it does not exist.
