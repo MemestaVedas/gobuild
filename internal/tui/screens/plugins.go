@@ -74,9 +74,12 @@ func (p *Plugins) panel(title string, w, h int, content string) string {
 	titleBarWidth := w - 2
 	if titleBarWidth < 0 { titleBarWidth = 0 }
 
+	dashCount := titleBarWidth - lipgloss.Width(titleStyled) + 1
+	if dashCount < 0 { dashCount = 0 }
+
 	topLine := lipgloss.NewStyle().Foreground(bColor).Render("╭") +
 		titleStyled +
-		lipgloss.NewStyle().Foreground(bColor).Render(strings.Repeat("─", titleBarWidth-lipgloss.Width(titleStyled))) +
+		lipgloss.NewStyle().Foreground(bColor).Render(strings.Repeat("─", dashCount)) +
 		lipgloss.NewStyle().Foreground(bColor).Render("╮")
 
 	box := lipgloss.NewStyle().

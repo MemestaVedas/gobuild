@@ -102,11 +102,18 @@ func (d *Dashboard) panel(title string, w, h int, active bool, content string) s
 		titleBarWidth = 0
 	}
 
+	// Manual top line must match the box width precisely.
+	// Adding 1 dash to shift the right corner to align with the box's vertical right border.
+	dashCount := titleBarWidth - lipgloss.Width(titleStyled) + 1
+	if dashCount < 0 {
+		dashCount = 0
+	}
+
 	topLine := lipgloss.NewStyle().
 		Foreground(bColor).
 		Render("╭") +
 		titleStyled +
-		lipgloss.NewStyle().Foreground(bColor).Render(strings.Repeat("─", titleBarWidth-lipgloss.Width(titleStyled))) +
+		lipgloss.NewStyle().Foreground(bColor).Render(strings.Repeat("─", dashCount)) +
 		lipgloss.NewStyle().Foreground(bColor).Render("╮")
 
 	box := lipgloss.NewStyle().
@@ -129,7 +136,11 @@ func (d *Dashboard) renderDetails(b *core.Build, w int) string {
 	if b == nil {
 		return lipgloss.NewStyle().Foreground(d.styles.ColorFaint).Render("\n  Select a build to see details")
 	}
-	return lipgloss.NewStyle().Foreground(d.styles.ColorText).Render(fmt.Sprintf("\n  ID: %s\n  Tool: %s\n  Cmd: %s", b.ID, b.Tool.String(), b.Command))
+	res := fmt.Sprintf("\n  ID: %s\n  Tool: %s\n  Cmd: %s", b.ID, b.Tool.String(), b.Command)
+	if b.IsActive() && b.MemBytes > 0 {
+		res += fmt.Sprintf("\n  CPU: %.1f%%\n  RAM: %.1f MB", b.CPUPct, float64(b.MemBytes)/1024/1024)
+	}
+	return lipgloss.NewStyle().Foreground(d.styles.ColorText).Render(res)
 }
 
 func (d *Dashboard) renderBuilds(active []*core.Build, w int) string {
@@ -177,13 +188,18 @@ func (d *Dashboard) renderBuilds(active []*core.Build, w int) string {
 		pct := int(b.Progress * 100)
 		elapsed := b.Elapsed().Seconds()
 
+		resourceText := ""
+		if b.IsActive() && b.MemBytes > 0 {
+			resourceText = fmt.Sprintf(" %.1f%% %dMB", b.CPUPct, b.MemBytes/1024/1024)
+		}
+
 		statusIconStyled := lipgloss.NewStyle().
 			Foreground(barColor).
 			Render(bIcon)
 
 		timeTextStyled := lipgloss.NewStyle().
 			Foreground(d.styles.ColorFaint).
-			Render(fmt.Sprintf("%ds", int(elapsed)))
+			Render(fmt.Sprintf("%ds%s", int(elapsed), resourceText))
 
 		rows = append(rows,
 			fmt.Sprintf("%s%s %s %s", prefix, statusIconStyled, label, lipgloss.NewStyle().Foreground(d.styles.ColorNormal).Render(b.Tool.String())),

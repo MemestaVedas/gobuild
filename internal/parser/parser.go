@@ -21,7 +21,8 @@ func init() {
 	Registry[core.ToolNPM] = &NPMParser{}
 	Registry[core.ToolMake] = &MakeParser{}
 	Registry[core.ToolGeneric] = &GenericParser{}
-	Registry[core.ToolGo] = &GenericParser{}
+	Registry[core.ToolGo] = &GoParser{}
+	Registry[core.ToolGeneric] = &GenericParser{}
 }
 
 // For returns the parser for a given tool, falling back to Generic.

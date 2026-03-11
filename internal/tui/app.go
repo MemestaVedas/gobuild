@@ -11,6 +11,7 @@ import (
 	"github.com/MemestaVedas/gobuild/internal/builder"
 	"github.com/MemestaVedas/gobuild/internal/config"
 	"github.com/MemestaVedas/gobuild/internal/core"
+	"github.com/MemestaVedas/gobuild/internal/platform/linux"
 	"github.com/MemestaVedas/gobuild/internal/tui/screens"
 	"github.com/MemestaVedas/gobuild/internal/tui/theme"
 )
@@ -45,6 +46,7 @@ type AppModel struct {
 
 	bm   *core.BuildManager
 	bldr *builder.Builder
+	plat *linux.LinuxPlatform
 }
 
 func NewAppModel(bm *core.BuildManager, bldr *builder.Builder, isDark bool) *AppModel {
@@ -63,6 +65,7 @@ func NewAppModel(bm *core.BuildManager, bldr *builder.Builder, isDark bool) *App
 		tabs:      NewTabBarModel(styles),
 		bm:        bm,
 		bldr:      bldr,
+		plat:      linux.New(),
 		showSetup: needsSetup,
 		screens: []screens.Screen{
 			screens.NewDashboard(bm, styles),
@@ -83,7 +86,7 @@ func (m *AppModel) Init() tea.Cmd {
 	for _, s := range m.screens {
 		cmds = append(cmds, s.Init())
 	}
-	cmds = append(cmds, tick())
+	cmds = append(cmds, tick(), tickStatsUpdate())
 	if m.showSetup && m.setup != nil {
 		cmds = append(cmds, m.setup.Init())
 	}
@@ -111,6 +114,32 @@ func (m *AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case StatsUpdateMsg:
+		// Update per-build resource stats
+		activeProcs, err := m.plat.ScanBuildProcesses()
+		if err == nil {
+			procMap := make(map[int]core.ProcessInfo)
+			for _, p := range activeProcs {
+				procMap[p.PID] = p
+			}
+
+			for _, b := range m.bm.Active() {
+				if pi, ok := procMap[b.PID]; ok {
+					m.bm.Update(b.ID, func(build *core.Build) {
+						build.CPUPct = pi.CPUPct
+						build.MemBytes = pi.MemBytes
+					})
+				}
+			}
+		}
+
+		// Update global stats for status bar
+		cpu, _ := m.plat.GetCPUPercent()
+		ramU, _, _ := m.plat.GetRAMUsage()
+		netU, netD, _ := m.plat.GetNetworkIO()
+		m.statusBar.UpdateStats(cpu, ramU, netU, netD)
+
+		return m, tickStatsUpdate()
 	case TickMsg:
 		return m, tick()
 	case tea.KeyMsg:

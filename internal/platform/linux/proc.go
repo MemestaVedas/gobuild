@@ -398,11 +398,38 @@ func buildProcessInfo(pid int, parts []string) (core.ProcessInfo, error) {
 		}
 	}
 
+	// RAM usage from /proc/<pid>/status (Resident Set Size)
+	memBytes := uint64(0)
+	statusData, err := readProcFile(pid, "status")
+	if err == nil {
+		for _, line := range strings.Split(statusData, "\n") {
+			if strings.HasPrefix(line, "VmRSS:") {
+				fields := strings.Fields(line)
+				if len(fields) >= 2 {
+					val, _ := strconv.ParseUint(fields[1], 10, 64)
+					memBytes = val * 1024 // kB -> bytes
+				}
+				break
+			}
+		}
+	}
+
+	// CPU usage (cumulative ticks for now)
+	// fields[13] = utime, fields[14] = stime
+	cpuPct := 0.0
+	if len(statFields) > 15 {
+		utime, _ := strconv.ParseFloat(statFields[13], 64)
+		stime, _ := strconv.ParseFloat(statFields[14], 64)
+		cpuPct = utime + stime // This is raw ticks, ideally we'd compare over time
+	}
+
 	return core.ProcessInfo{
-		PID:     pid,
+		PID:      pid,
 		PPID:    ppid,
 		Name:    name,
-		CmdLine: strings.Join(parts, " "), // Keep the whole cmdline for display/debug
+		CmdLine: strings.Join(parts, " "),
 		CWD:     cwd,
+		MemBytes: memBytes,
+		CPUPct:   cpuPct,
 	}, nil
 }

@@ -142,6 +142,8 @@ type Build struct {
 	Errors      []BuildError
 	Tags        []string
 	ProfileName string
+	CPUPct      float64
+	MemBytes    uint64
 }
 
 // Elapsed returns the current elapsed time for the build.
